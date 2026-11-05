@@ -6,6 +6,10 @@
 
 这是独立编写的新项目，不是原 TVReader 的汉化补丁。UI 延续通过 Local Codex 完成的“暗色书房”设计，并以原生 Android View 实现。
 
+[下载测试版 APK](https://github.com/spudhero/ShufangTV/releases/tag/v0.1.0-alpha.1) · [验证记录](docs/VALIDATION.md) · [原生界面图](docs/SCREENSHOTS.md)
+
+![首页：原生视图渲染](docs/screenshots/home.png)
+
 ## 功能
 
 - 中文首页、书库、阅读页、书签、书籍来源与设置；遥控器焦点、方向键与分层返回。

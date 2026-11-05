@@ -27,7 +27,7 @@ import org.robolectric.shadows.ShadowLooper;
 import org.robolectric.util.ReflectionHelpers;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 31, qualifiers = "television-land-xhdpi-w960dp-h540dp")
+@Config(sdk = 31, qualifiers = "zh-rCN-w960dp-h540dp-land-television-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class NativeInterfaceTest {
   @Test

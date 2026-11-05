@@ -1040,7 +1040,7 @@ public final class MainActivity extends Activity {
         false,
         () ->
             message(
-                "书房 TV 0.1.0\n"
+                "书房 TV 0.1.0-alpha.1（测试版）\n"
                     + "独立编写的 Android TV 开源阅读器\n"
                     + "Apache-2.0\n"
                     + "github.com/spudhero/ShufangTV\n"
@@ -1204,7 +1204,8 @@ public final class MainActivity extends Activity {
   }
 
   @Override
-  @android.annotation.SuppressLint("GestureBackNavigation") // API 33+ uses the registered platform callback.
+  @android.annotation.SuppressLint(
+      "GestureBackNavigation") // API 33+ uses the registered platform callback.
   public boolean dispatchKeyEvent(KeyEvent event) {
     if (Build.VERSION.SDK_INT < 33 && event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
       if (event.getAction() == KeyEvent.ACTION_UP) goBack();
