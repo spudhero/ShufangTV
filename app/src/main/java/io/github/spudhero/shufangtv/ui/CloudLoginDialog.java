@@ -3,11 +3,11 @@ package io.github.spudhero.shufangtv.ui;
 import static io.github.spudhero.shufangtv.ui.TvStyle.*;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.Gravity;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -33,9 +33,10 @@ public final class CloudLoginDialog implements AutoCloseable {
   private final ExecutorService io;
   private final Consumer<CloudAccount> authorized;
   private final Handler handler = new Handler(Looper.getMainLooper());
-  private final AlertDialog dialog;
+  private final Dialog dialog;
   private final ImageView image;
   private final TextView status;
+  private final TextView refresh;
   private Future<?> pending;
   private boolean closed;
   private CloudProvider.LoginChallenge challenge;
@@ -50,39 +51,80 @@ public final class CloudLoginDialog implements AutoCloseable {
     this.provider = provider;
     this.io = io;
     this.authorized = authorized;
-    LinearLayout content = horizontal(activity);
-    content.setGravity(Gravity.CENTER_VERTICAL);
-    content.setPadding(dp(activity, 24), dp(activity, 12), dp(activity, 24), dp(activity, 20));
+    boolean compact = activity.getResources().getConfiguration().screenHeightDp < 450;
+    LinearLayout content = vertical(activity);
+    content.setPadding(
+        dp(activity, 24),
+        dp(activity, compact ? 16 : 22),
+        dp(activity, 24),
+        dp(activity, compact ? 16 : 22));
+    content.setBackground(panel(activity, SURFACE, SourceUi.BORDER));
+    LinearLayout title = horizontal(activity);
+    title.addView(
+        heading(activity, "连接" + provider.label(), 22),
+        new LinearLayout.LayoutParams(0, dp(activity, compact ? 28 : 34), 1));
+    add(title, SourceUi.badge(activity, "手机扫码 · 电视阅读"), -2, 26);
+    add(content, title, -1, compact ? 28 : 34);
+    gap(content, compact ? 4 : 10);
+    add(content, SourceUi.steps(activity, 0), -1, compact ? 22 : 26);
+    gap(content, compact ? 10 : 18);
+    LinearLayout scan = horizontal(activity);
     image = new ImageView(activity);
     image.setBackgroundColor(0xffffffff);
+    image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    image.setPadding(dp(activity, 10), dp(activity, 10), dp(activity, 10), dp(activity, 10));
+    image.setTag("cloud-qr-image");
     String scanner =
         provider.id().equals("uc")
             ? "UC 浏览器"
             : provider.id().equals("quark") ? "夸克" : provider.label();
     image.setContentDescription("使用手机上的" + scanner + "扫描此二维码登录");
-    add(content, image, 220, 220);
+    add(scan, image, compact ? 180 : 232, compact ? 180 : 232);
+    gap(scan, compact ? 20 : 32);
     LinearLayout right = vertical(activity);
-    right.setPadding(dp(activity, 24), 0, 0, 0);
-    add(right, heading(activity, "扫码连接自己的网盘", 19), -1, 38);
+    add(right, heading(activity, "用手机完成授权", compact ? 17 : 19), -1, compact ? 28 : 34);
     TextView instructions =
-        text(activity, "打开手机上的" + scanner + "，使用扫一扫并确认登录。\n\n登录后选择书籍文件夹，即可在线阅读。", 14, MUTED);
-    add(right, instructions, -1, 136);
+        text(activity, "1  打开手机上的" + scanner + "\n2  使用扫一扫，在手机上确认登录", compact ? 12 : 14, TEXT);
+    instructions.setLineSpacing(dp(activity, compact ? 5 : 7), 1);
+    add(right, instructions, -1, compact ? 52 : 66);
+    gap(right, compact ? 8 : 12);
     status = text(activity, "正在获取二维码…", 13, ACCENT);
-    add(right, status, -1, 56);
-    add(content, right, 300, -2);
-    dialog =
-        new AlertDialog.Builder(activity)
-            .setTitle(provider.label() + " · 扫码登录")
-            .setView(content)
-            .setNegativeButton("取消", null)
-            .setNeutralButton("刷新二维码", null)
-            .create();
+    status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    status.setTag("cloud-qr-status");
+    status.setPadding(
+        dp(activity, 12),
+        dp(activity, compact ? 6 : 10),
+        dp(activity, 12),
+        dp(activity, compact ? 6 : 10));
+    status.setBackground(panel(activity, BG, 0));
+    add(right, status, -1, compact ? 44 : 58);
+    gap(right, compact ? 8 : 12);
+    add(
+        right,
+        text(activity, "登录后选择书籍文件夹。\n只建立来源，不自动下载书籍。", compact ? 11 : 12, MUTED),
+        -1,
+        compact ? 32 : 42);
+    scan.addView(right, new LinearLayout.LayoutParams(0, -2, 1));
+    add(content, scan, -1, compact ? 180 : 232);
+    gap(content, compact ? 8 : 20);
+    LinearLayout actions = horizontal(activity);
+    actions.addView(
+        text(activity, "请使用自己的网盘账号", 11, MUTED), new LinearLayout.LayoutParams(0, -2, 1));
+    refresh = button(activity, "刷新二维码", true, this::restart);
+    refresh.setTag("cloud-qr-refresh");
+    add(actions, refresh, 130, 44);
+    gap(actions, 10);
+    TextView cancel = button(activity, "取消", false, () -> close());
+    cancel.setTag("cloud-qr-cancel");
+    add(actions, cancel, 88, 44);
+    add(content, actions, -1, 44);
+    dialog = SourceUi.dialog(activity, content, 744);
     dialog.setOnDismissListener(d -> close());
   }
 
   public void show() {
     dialog.show();
-    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> restart());
+    refresh.requestFocus();
     restart();
   }
 
@@ -93,6 +135,7 @@ public final class CloudLoginDialog implements AutoCloseable {
     challenge = null;
     transientFailures = 0;
     image.setImageDrawable(null);
+    image.setImageAlpha(255);
     status.setText("正在获取二维码…");
     // A generation counter rejects results from a request superseded by refresh.
     int current = ++generation;
@@ -129,6 +172,7 @@ public final class CloudLoginDialog implements AutoCloseable {
   private void poll(int current) {
     if (closed || current != generation || challenge == null) return;
     if (System.currentTimeMillis() >= challenge.expiresAt) {
+      image.setImageAlpha(50);
       status.setText("二维码已过期，请选择“刷新二维码”");
       return;
     }
@@ -148,6 +192,7 @@ public final class CloudLoginDialog implements AutoCloseable {
                         authorized.accept(result.account);
                       } else if (result.status == CloudProvider.Status.EXPIRED
                           || result.status == CloudProvider.Status.DENIED) {
+                        image.setImageAlpha(50);
                         status.setText(
                             result.message == null || result.message.isEmpty()
                                 ? "本次登录已结束，请刷新二维码"

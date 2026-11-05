@@ -38,6 +38,15 @@ import org.robolectric.util.ReflectionHelpers;
 public class OnlineOfflineFlowTest {
   @Test
   public void onlineDoesNotSaveBookAndExplicitOfflineCopyWorksWithoutServer() throws Exception {
+    runOnlineOfflineFlow(false);
+  }
+
+  @Test
+  public void sourceActionPanelKeepsOnlineAndOfflineOperationsSeparate() throws Exception {
+    runOnlineOfflineFlow(true);
+  }
+
+  private void runOnlineOfflineFlow(boolean sourcePanel) throws Exception {
     byte[] bytes =
         ("在线阅读验证\n\n只在需要时，取一页文字。\n\n在线模式通过家庭书库按需读取；主动保存后，才能在电视上离线打开。\n\n".repeat(7000))
             .getBytes(StandardCharsets.UTF_8);
@@ -83,9 +92,12 @@ public class OnlineOfflineFlowTest {
       book.size = bytes.length;
       library.books.add(book);
       library.save();
-      decor.findViewWithTag("nav-library").performClick();
-      decor.findViewWithTag("book-" + book.id).performClick();
-      choose(0);
+      if (sourcePanel) sourceAction(activity, decor, source, book, "remote-open-online");
+      else {
+        decor.findViewWithTag("nav-library").performClick();
+        decor.findViewWithTag("book-" + book.id).performClick();
+        choose(0);
+      }
       settle(activity);
       render(decor, "online-reader.png");
       assertNotNull(findText(decor, "在线阅读"));
@@ -103,8 +115,11 @@ public class OnlineOfflineFlowTest {
       assertTrue(position > 0);
       activity.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK));
       settle(activity);
-      decor.findViewWithTag("book-" + book.id).performClick();
-      choose(1);
+      if (sourcePanel) sourceAction(activity, decor, source, book, "remote-save-offline");
+      else {
+        decor.findViewWithTag("book-" + book.id).performClick();
+        choose(1);
+      }
       ShadowAlertDialog.getLatestAlertDialog()
           .getButton(AlertDialog.BUTTON_POSITIVE)
           .performClick();
@@ -126,6 +141,25 @@ public class OnlineOfflineFlowTest {
       assertEquals(position, findPage(decor).offset());
       assertEquals(requests, server.requests.size());
     }
+  }
+
+  private static void sourceAction(
+      MainActivity activity, ViewGroup decor, SourceConfig source, BookRecord book, String action) {
+    ReflectionHelpers.callInstanceMethod(
+        activity,
+        "showRemote",
+        ReflectionHelpers.ClassParameter.from(SourceConfig.class, source),
+        ReflectionHelpers.ClassParameter.from(String.class, ""),
+        ReflectionHelpers.ClassParameter.from(
+            java.util.List.class,
+            java.util.Collections.singletonList(
+                new RemoteEntry("在线阅读验证.txt", book.remotePath, false, book.size))));
+    decor.findViewWithTag("remote-" + book.remotePath).performClick();
+    org.robolectric.shadows.ShadowDialog.getLatestDialog()
+        .getWindow()
+        .getDecorView()
+        .findViewWithTag(action)
+        .performClick();
   }
 
   private static void choose(int index) {

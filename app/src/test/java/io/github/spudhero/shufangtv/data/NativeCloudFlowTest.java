@@ -3,11 +3,14 @@ package io.github.spudhero.shufangtv.data;
 import static org.junit.Assert.*;
 
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import com.google.zxing.*;
 import com.google.zxing.common.HybridBinarizer;
 import io.github.spudhero.shufangtv.MainActivity;
@@ -28,6 +31,7 @@ import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
 import org.robolectric.shadows.ShadowAlertDialog;
+import org.robolectric.shadows.ShadowDialog;
 import org.robolectric.shadows.ShadowLooper;
 import org.robolectric.util.ReflectionHelpers;
 
@@ -42,7 +46,14 @@ public class NativeCloudFlowTest {
       MainActivity activity = controller.get();
       FakeProvider provider = new FakeProvider();
       MemoryAccounts accounts = new MemoryAccounts();
-      CloudLibrary clouds = new CloudLibrary(accounts, Collections.singletonList(provider));
+      CloudLibrary clouds =
+          new CloudLibrary(
+              accounts,
+              java.util.Arrays.asList(
+                  provider,
+                  new FakeProvider("baidu", "百度网盘"),
+                  new FakeProvider("quark", "夸克网盘"),
+                  new FakeProvider("uc", "UC 网盘")));
       SecretKeySpec key = new SecretKeySpec(new byte[32], "AES");
       SourceStore sources = new SourceStore(activity, key);
       ReflectionHelpers.setField(activity, "clouds", clouds);
@@ -52,12 +63,10 @@ public class NativeCloudFlowTest {
       decor.findViewWithTag("nav-sources").performClick();
       decor.findViewWithTag("cloud-login-aliyun").performClick();
       settle(activity);
-      assertTrue(ShadowAlertDialog.getLatestAlertDialog().isShowing());
-      render(
-          ShadowAlertDialog.getLatestAlertDialog().getWindow().getDecorView(),
-          "cloud-login.png",
-          1400,
-          720);
+      Dialog login = ShadowDialog.getLatestDialog();
+      assertTrue(login.isShowing());
+      renderDialog(login, "cloud-login.png", 1920, 1080);
+      assertNotNull(login.findViewById(android.R.id.content).findViewWithTag("cloud-qr-refresh"));
       Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2));
       settle(activity);
       assertEquals(1, accounts.all().size());
@@ -76,6 +85,7 @@ public class NativeCloudFlowTest {
       activity.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK));
       settle(activity);
       assertNotNull(decor.findViewWithTag("cloud-folder-drive:nested"));
+      assertTrue(decor.findViewWithTag("cloud-folder-drive:nested").hasFocus());
       decor.findViewWithTag("cloud-folder-drive:nested").performClick();
       settle(activity);
       decor.findViewWithTag("cloud-folder-save").performClick();
@@ -85,10 +95,32 @@ public class NativeCloudFlowTest {
       assertEquals("drive:nested", restored.sources.get(0).root);
       assertEquals("aliyun:fixture", restored.sources.get(0).accountId);
       assertEquals(0, provider.resolves.get());
+      render(decor, "cloud-sources.png", 1920, 1080);
+      decor.findViewWithTag("source-browse-" + restored.sources.get(0).id).performClick();
+      settle(activity);
+      render(decor, "cloud-browser.png", 1920, 1080);
+      View bookItem = decor.findViewWithTag("remote-file:sample");
+      bookItem.requestFocus();
+      bookItem.performClick();
+      Dialog actions = ShadowDialog.getLatestDialog();
+      renderDialog(actions, "cloud-actions.png", 1920, 1080);
+      View online = actions.getWindow().getDecorView().findViewWithTag("remote-open-online");
+      View offline = actions.getWindow().getDecorView().findViewWithTag("remote-save-offline");
+      assertTrue(online.hasFocus());
+      assertSame(offline, online.focusSearch(View.FOCUS_DOWN));
+      actions.cancel();
+      assertEquals(
+          "opening an action panel must not fetch book content", 0, provider.resolves.get());
+      decor.findViewWithTag("remote-refresh").performClick();
+      settle(activity);
+      assertTrue(
+          "reloading the directory must restore the selected book",
+          decor.findViewWithTag("remote-file:sample").hasFocus());
     }
   }
 
   @Test
+  @Config(qualifiers = "zh-rCN-w640dp-h360dp-land-television-xhdpi")
   public void dismissingQrStopsPollingAndNeverSavesAnUnconfirmedAccount() throws Exception {
     try (ActivityController<MainActivity> controller =
         Robolectric.buildActivity(MainActivity.class).setup()) {
@@ -101,12 +133,60 @@ public class NativeCloudFlowTest {
       decor.findViewWithTag("nav-sources").performClick();
       decor.findViewWithTag("cloud-login-aliyun").performClick();
       settle(activity);
-      AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+      Dialog dialog = ShadowDialog.getLatestDialog();
+      View content = dialog.getWindow().getDecorView();
+      renderDialog(dialog, "cloud-login-720p.png", 1280, 720);
+      View refresh = content.findViewWithTag("cloud-qr-refresh");
+      Rect visible = new Rect();
+      assertTrue(refresh.getGlobalVisibleRect(visible));
+      assertEquals(refresh.getHeight(), visible.height());
+      assertTrue(content.getHeight() <= 720);
       dialog.cancel();
       Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(6));
       settle(activity);
       assertEquals(0, provider.polls.get());
       assertTrue(accounts.all().isEmpty());
+    }
+  }
+
+  @Test
+  @Config(qualifiers = "zh-rCN-w640dp-h360dp-land-television-xhdpi")
+  public void longFolderListKeepsSelectionVisibleAt720pAndShowsNamesInsteadOfIds()
+      throws Exception {
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      FakeProvider provider = new FakeProvider();
+      provider.longList = true;
+      MemoryAccounts accounts = new MemoryAccounts();
+      CloudLibrary cloudLibrary = new CloudLibrary(accounts, Collections.singletonList(provider));
+      cloudLibrary.save(provider.account);
+      ReflectionHelpers.setField(activity, "clouds", cloudLibrary);
+      ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+      decor.findViewWithTag("nav-sources").performClick();
+      decor.findViewWithTag("cloud-login-aliyun").performClick();
+      Dialog accountMenu = ShadowDialog.getLatestDialog();
+      renderDialog(accountMenu, "cloud-account-720p.png", 1280, 720);
+      assertNotNull(
+          accountMenu
+              .getWindow()
+              .getDecorView()
+              .findViewWithTag("cloud-account-choose-" + provider.account.id));
+      accountMenu.cancel();
+      decor.findViewWithTag("cloud-folder-add").performClick();
+      settle(activity);
+      render(decor, "cloud-folder-720p.png", 1280, 720);
+      View save = decor.findViewWithTag("cloud-folder-save");
+      Rect bounds = new Rect();
+      assertTrue(save.getGlobalVisibleRect(bounds));
+      assertEquals(save.getHeight(), bounds.height());
+      assertTrue(bounds.bottom <= 720);
+      View folder = decor.findViewWithTag("cloud-folder-drive:nested");
+      folder.performClick();
+      settle(activity);
+      TextView path = decor.findViewWithTag("cloud-folder-breadcrumb");
+      assertTrue(path.getText().toString().contains("我的书籍"));
+      assertFalse(path.getText().toString().contains("drive:"));
     }
   }
 
@@ -149,18 +229,41 @@ public class NativeCloudFlowTest {
     }
   }
 
+  private static void renderDialog(Dialog dialog, String name, int width, int height)
+      throws Exception {
+    View view = dialog.getWindow().getDecorView();
+    int preferred = dialog.getWindow().getAttributes().width;
+    view.measure(
+        View.MeasureSpec.makeMeasureSpec(Math.min(width, preferred), View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.UNSPECIFIED));
+    int naturalHeight = view.getMeasuredHeight();
+    assertTrue(
+        "dialog must fit the TV before clipping", naturalHeight > 0 && naturalHeight <= height);
+    render(view, name, view.getMeasuredWidth(), naturalHeight);
+  }
+
   private static final class FakeProvider implements CloudProvider {
     final AtomicInteger polls = new AtomicInteger(), resolves = new AtomicInteger();
-    boolean failNextList;
-    final CloudAccount account =
-        new CloudAccount("aliyun", "aliyun:fixture", "测试网盘", new JSONObject());
+    boolean failNextList, longList;
+    final CloudAccount account;
+    final String providerId, providerLabel;
+
+    FakeProvider() {
+      this("aliyun", "阿里云盘");
+    }
+
+    FakeProvider(String id, String label) {
+      providerId = id;
+      providerLabel = label;
+      account = new CloudAccount(id, id + ":fixture", "测试网盘", new JSONObject());
+    }
 
     public String id() {
-      return "aliyun";
+      return providerId;
     }
 
     public String label() {
-      return "阿里云盘";
+      return providerLabel;
     }
 
     public String rootId(CloudAccount account) {
@@ -189,11 +292,21 @@ public class NativeCloudFlowTest {
         failNextList = false;
         throw new java.io.IOException("测试连接中断");
       }
-      return new ListPage(
-          folder.equals("drive:root")
-              ? Collections.singletonList(new Entry("drive:nested", folder, "我的书籍", true, 0))
-              : Collections.emptyList(),
-          "");
+      if (!directoriesOnly)
+        return new ListPage(
+            java.util.Arrays.asList(
+                new Entry("folder:essay", folder, "散文与随笔", true, 0),
+                new Entry("file:sample", folder, "阅读示例：长书名在电视上的清晰呈现.txt", false, 524288),
+                new Entry("file:epub", folder, "书房阅读指南.epub", false, 2097152),
+                new Entry("file:pdf", folder, "家庭书库手册.pdf", false, 4194304)),
+            "");
+      if (!folder.equals("drive:root")) return new ListPage(Collections.emptyList(), "");
+      java.util.List<Entry> entries = new java.util.ArrayList<>();
+      entries.add(new Entry("drive:nested", folder, "我的书籍", true, 0));
+      if (longList)
+        for (int i = 0; i < 30; i++)
+          entries.add(new Entry("drive:item" + i, folder, "中文长目录名称与分类 " + i, true, 0));
+      return new ListPage(entries, "");
     }
 
     public DownloadLink resolve(CloudAccount account, String file) {

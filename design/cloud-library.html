@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="书房 TV 网盘流程交互设计：连接账号、选择文件夹、浏览书籍与选择阅读方式。">
+  <title>书房 TV · 网盘书库设计</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23191c1b'/%3E%3Cpath d='M6 6h8l2 3 2-3h8v20h-8l-2-2-2 2H6zM16 9v15' fill='none' stroke='%23d8b377' stroke-width='1.5'/%3E%3C/svg%3E">
+  <style>/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  /* containers */
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  /* stacked information: each piece is its own line — never sibling inline spans */
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  /* media keeps its intrinsic ratio by default; never a distorted or cropped
+     cover by accident. height:auto lets the ratio win over an <img height="…">
+     attribute. Cropping to a uniform box is an explicit opt-in: set --od-ratio
+     AND add .od-media-cover together (per the core rule, only where a crop is
+     deliberate — tile thumbs, decorative fills — never on full-frame content). */
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  /* functional inline SVG icons opt into bounded geometry; content SVGs keep their own */
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  /* data text only — authored copy is rewritten to its budget instead */
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }   /* block-level reservation for a shared baseline */
+  .od-nowrap  { white-space: nowrap; }           /* 数字+单位 · 价格+起 · 日期+星期 */
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; } /* CJK labels break at spaces / <wbr> first */
+
+  /* screen skeleton (optional): bars take their own space, the middle scrolls — no padding guessed for chrome */
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  /* horizontal rail: the next item peeks at the edge; trailing room survives overflow */
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+</style>
+  <link rel="stylesheet" href="css/cloud-library.css">
+  <script defer src="js/cloud-library.js"></script>
+</head>
+<body>
+  <div class="preview-app">
+    <header class="preview-toolbar" aria-label="设计预览工具栏，不属于电视产品界面">
+      <div class="preview-top">
+        <div class="preview-brand"><strong>书房 TV · 网盘流程</strong><small>设计预览工具 · 非产品界面</small></div>
+        <nav id="preview-tabs" class="preview-tabs" aria-label="切换设计页面">
+          <button type="button" data-screen="sources" aria-pressed="true"><b>01</b> 书籍来源</button>
+          <button type="button" data-screen="qr" aria-pressed="false"><b>02</b> 扫码登录</button>
+          <button type="button" data-screen="folder" aria-pressed="false"><b>03</b> 选择文件夹</button>
+          <button type="button" data-screen="browse" aria-pressed="false"><b>04</b> 浏览来源</button>
+        </nav>
+        <span class="preview-note">960 × 540 dp · 16:9 · 仅本地演示</span>
+      </div>
+      <div class="preview-controls">
+        <div class="preview-group">
+          <label for="preview-source-state">来源状态</label>
+          <select id="preview-source-state">
+            <option value="connected">已连接 · 文学与技术</option>
+            <option value="empty">已连接 · 尚无来源</option>
+            <option value="unconnected">未连接账号</option>
+            <option value="custom" disabled>交互中的当前状态</option>
+          </select>
+        </div>
+        <div class="preview-group">
+          <label for="preview-provider">网盘</label>
+          <select id="preview-provider">
+            <option value="ali">阿里云盘</option><option value="baidu">百度网盘</option><option value="quark">夸克网盘</option><option value="uc">UC网盘</option>
+          </select>
+        </div>
+        <div class="preview-group" id="directory-controls" hidden>
+          <label for="preview-directory-state">目录状态</label>
+          <select id="preview-directory-state"><option value="normal">正常目录</option><option value="empty">空目录</option><option value="paged">多页目录</option><option value="loading">读取中</option><option value="error">读取失败</option></select>
+        </div>
+        <div class="preview-group" id="qr-controls" hidden>
+          <label for="preview-qr-state">扫码状态</label>
+          <select id="preview-qr-state"><option value="waiting">等待扫码</option><option value="scanned">已扫码</option><option value="authorizing">授权中</option><option value="expired">已过期</option></select>
+          <button type="button" id="simulate-scan">模拟扫码</button>
+        </div>
+        <div class="preview-group">
+          <button type="button" id="focus-tv">进入电视 · F6</button>
+          <button type="button" id="bridge-return" hidden>返回网盘流程</button>
+          <button type="button" id="reset-preview">重置示例</button>
+        </div>
+      </div>
+    </header>
+    <div class="preview-stage">
+      <div class="tv-frame">
+        <div id="cloud-tv" aria-label="书房电视界面">
+          <div id="cloud-content"></div>
+          <div id="cloud-overlay" class="overlay-layer" hidden></div>
+          <div id="cloud-toast" class="toast" role="status" aria-live="polite" hidden></div>
+          <noscript><div class="bridge-fallback"><h1>书房 TV · 网盘书库</h1><p>请启用 JavaScript，以切换页面并使用遥控器导航。</p></div></noscript>
+        </div>
+      </div>
+    </div>
+    <footer class="preview-status" aria-live="polite">
+      <strong>↑ ↓ ← → 移动 · Enter 确定 · Esc 返回 · F6 切换预览工具</strong>
+      <span id="preview-message">账号、文件与二维码均为本地演示，不连接真实网盘。先选“文学”浏览，或选择网盘入口体验扫码。</span>
+    </footer>
+  </div>
+</body>
+</html>

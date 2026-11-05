@@ -20,7 +20,17 @@
 
 ## 书籍来源
 
+新版使用整卡网盘入口与紧凑的本地/家庭书库入口。
+
 ![书籍来源](screenshots/sources.png)
+
+已连接账号、已保存文件夹与独立管理入口（合成测试会话）：
+
+![已连接的来源](screenshots/cloud-sources.png)
+
+旧版 `0.2.0-alpha.1`，用于对照：
+
+![优化前的来源页](screenshots/sources-before.png)
 
 ## 扫码登录与选择文件夹
 
@@ -29,6 +39,24 @@
 ![原生扫码弹窗](screenshots/cloud-login.png)
 
 ![原生文件夹选择](screenshots/cloud-folder.png)
+
+## 浏览书籍与选择阅读方式
+
+类型和大小来自测试夹具，动作面板明确区分按需在线读取与占用存储的离线保存。
+
+![浏览来源](screenshots/cloud-browser.png)
+
+![在线与离线动作](screenshots/cloud-actions.png)
+
+## 较小屏幕
+
+以下使用 640×360dp / 1280×720 渲染配置。扫码与账号弹窗按自身窗口大小显示，目录页固定保留确认区。
+
+![小屏目录](screenshots/cloud-folder-720p.png)
+
+![小屏扫码](screenshots/cloud-login-720p.png)
+
+![小屏账号管理](screenshots/cloud-account-720p.png)
 
 ## 设置
 

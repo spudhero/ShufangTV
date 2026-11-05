@@ -4,9 +4,9 @@
 
 **在线阅读与离线阅读是两个独立操作。** 在线打开书籍时按需读取，临时内容留在有上限的内存缓存，不先把书下载到电视。只有主动选择“保存到本地”，才会完整下载离线副本。
 
-这是独立编写的新项目，不是原 TVReader 的汉化补丁。UI 延续通过 Local Codex 完成的“暗色书房”设计，并以原生 Android View 实现。
+这是独立编写的新项目，不是原 TVReader 的汉化补丁。UI 延续通过 OpenDesign Cloud / Local Codex 完成的“暗色书房”设计，并以原生 Android View 实现。新增网盘来源、扫码、目录选择与阅读方式面板已按设计稿优化；[设计原型](design/README.md)与[落地说明](docs/UI-DESIGN.md)随源码保存。
 
-[下载测试版 APK](https://github.com/spudhero/ShufangTV/releases/tag/v0.2.0-alpha.1) · [网盘连接说明](docs/CLOUD-CONNECTIONS.md) · [验证记录](docs/VALIDATION.md) · [原生界面图](docs/SCREENSHOTS.md)
+[下载测试版 APK](https://github.com/spudhero/ShufangTV/releases/tag/v0.2.0-alpha.2) · [网盘连接说明](docs/CLOUD-CONNECTIONS.md) · [验证记录](docs/VALIDATION.md) · [原生界面图](docs/SCREENSHOTS.md)
 
 ![首页：原生视图渲染](docs/screenshots/home.png)
 

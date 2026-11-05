@@ -2,7 +2,7 @@
 
 日期：2026-11-05。构建环境：JDK 17、Gradle 8.13、Android SDK / Build Tools 36。
 
-本记录对应 `0.2.0-alpha.1`，增加四家原生网盘扫码来源。`0.1.0-alpha.1` 的 70 项检查与已发布 APK 保留在原标签和发布页。
+本记录对应 `0.2.0-alpha.2`，优化网盘来源、扫码、文件夹选择与阅读方式面板。`0.2.0-alpha.1` 的四家原生扫码来源与 138 项检查保留在原标签和发布页。`0.1.0-alpha.1` 的 70 项检查与已发布 APK 保留在原标签和发布页。
 
 ## 已通过
 
@@ -13,14 +13,14 @@
 - 在线读取：7 项 JVM 测试通过，验证 8 MiB 未读 EPUB 内容不会在元数据 / 第一章打开时被传输、1 MiB 缓存上限、UTF-8 / GB18030 / UTF-16 分段往返与资源释放。
 - 进度与存储：3 项 Robolectric 测试通过，验证字体变化后的逻辑位置、在线记录重载不生成离线文件、损坏书库记录禁止覆盖。
 - 原生界面：2 项 Android API 31 / TV 配置的 Robolectric 测试通过，覆盖中文页面、返回操作、正文遥控器翻页、书签、退出和继续阅读。
-- 模式完整流程：1 项原生 UI 与本机 HTTP 服务集成测试通过。先在线打开生成的长 TXT，确认仅发出 Range 请求且离线目录为空；随后在 UI 主动下载，确认只有一个完整文件；关闭 HTTP 服务后离线打开，确认不发请求且恢复相同文字位置。
+- 模式完整流程：2 项原生 UI 与本机 HTTP 服务集成测试通过。分别从书库旧菜单和来源页的新阅读方式面板，先在线打开生成的长 TXT，确认仅发出 Range 请求且离线目录为空；随后在 UI 主动下载，确认只有一个完整文件；关闭 HTTP 服务后离线打开，确认不发请求且恢复相同文字位置。
 - 四家网盘协议：41 项受控测试（阿里/百度 24、夸克/UC 17），覆盖二维码、POST 轮询、票据交换、个人盘验证、签名、续期、401 单次重试、目录分页、请求头、Cookie 隔离与更新。
 - 网盘按需读取：12 项 HTTP 测试，覆盖 256 KiB 上限、严格 Range、200 响应拒绝、长度/ETag 变化、地址更新、跨源认证头隔离，以及关闭时取消活跃读取。
 - 网盘模式与账号：8 项集成测试，覆盖不透明 ID、多页目录、仅显式下载写入离线副本、取消保留旧副本、退出阻止新读取和旧请求不能恢复/覆盖账号。
 - 加密会话与来源：4 项存储测试，使用注入的测试 AES 密钥验证密文往返、篡改拒绝、Cookie 域/路径/Secure 保留、跨厂商账号 ID 和既有 SMB 来源兼容。设备 AndroidKeyStore 仍待实机验证。
-- 网盘原生界面：3 项 API 31 / TV 配置测试，覆盖模拟扫码→选目录→返回→保存来源、目录加载失败不改变父栈、取消后停止轮询，以及二维码显示内容可解码。扫码图与目录图使用合成会话。
+- 网盘原生界面：4 项 API 31 / TV 配置测试，覆盖模拟扫码→选目录→返回→保存来源、目录加载失败不改变父栈、取消后停止轮询，以及二维码显示内容可解码。还验证目录返回/刷新后恢复焦点、弹窗内向下键移动到离线操作，以及 640×360dp 小屏下确认区、二维码刷新按钮与账号菜单可用。扫码图与目录图使用合成会话。
 
-合计 **138 项测试通过**：`core` 32 项、`app` 106 项，0 失败、0 错误、0 跳过。最终联合检查 `:core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug` 成功。
+合计 **140 项测试通过**：`core` 32 项、`app` 108 项，0 失败、0 错误、0 跳过。最终联合检查 `:core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug` 成功。
 
 EPUB 的受控测试文件含 8 MiB 未读内容，元数据与第一章合计传输断言小于 512 KiB。在线 TXT 的集成测试同时验证 TV 私有书籍目录没有生成整本文件。相关用例分别为 `OnlineReadingTest` 和 `OnlineOfflineFlowTest`。
 
@@ -28,11 +28,15 @@ EPUB 的受控测试文件含 8 MiB 未读内容，元数据与第一章合计�
 
 ## 可复核结果
 
-发布 APK：`ShufangTV-0.2.0-alpha.1-debug.apk`，6,894,385 字节；SHA-256：`bc418d56b2f122bd6cfa72bd103272b9ff69aeab51702328230b4e8d58b54cff`。版本码 2、Android API 26–36，APK Signature Scheme v2 验证通过。签名证书与已发布 `0.1.0-alpha.1` 相同，可以覆盖安装测试；原发布 APK 的 SHA-256 也已重新核对。
+发布 APK：`ShufangTV-0.2.0-alpha.2-debug.apk`，6,938,829 字节；SHA-256：`a7a0e442a86cf07ace4c23f7773192e53b6c635fe9de6366939510cdc31cc24f`。版本码 3、Android API 26–36，APK Signature Scheme v2 验证通过。签名证书与已发布 `0.1.0-alpha.1` / `0.2.0-alpha.1` 相同，可以覆盖安装测试；原发布 APK 的 SHA-256 也已重新核对。
 
 [界面图](SCREENSHOTS.md)来自原生 Android View 与 Robolectric 的图形渲染，使用原创指南和生成的测试书籍，不是电视截屏。API 31 的 JVM 环境可验证页面与输入逻辑，不能替代设备驱动、Binder、系统文件选择器和实际遥控器。
 
 Robolectric 默认从 Maven Central 下载 Android 测试运行时。本机为解决下载连接缓慢，使用已校验的 `android-all-instrumented:12-robolectric-7732740-i7` 本地文件，SHA-256：`ee2dbe28bfe63ddce34a2d631c6168c131f78a4cb58caeb4d832988e936760cb`。Gradle 支持透传 `-Drobolectric.offline=true -Drobolectric.dependency.dir=<运行时目录>`；普通构建无需这两个参数。
+
+## 设计原型检查
+
+OpenDesign Cloud / Local Codex 交付的四页原型与规范已保存到 `design/`。导出的 JavaScript 语法检查通过；本地浏览器验证了来源、扫码与浏览页面，模拟扫码可进入“已扫码”，Esc 可关闭弹窗，控制台无错误或警告。网页结果仅验证设计交互，原生结果以以上 140 项检查与 View 渲染为准。
 
 ## 设备验证边界
 

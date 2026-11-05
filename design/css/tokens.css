@@ -1,0 +1,51 @@
+:root {
+  color-scheme: dark;
+  --canvas-w: 1920px;
+  --canvas-h: 1080px;
+  --bg: #191c1b;
+  --sidebar: #141716;
+  --surface: #242825;
+  --surface-raised: #2c312d;
+  --surface-hover: #343a34;
+  --line: #3b423c;
+  --text: #f0eee6;
+  --muted: #b7bdb4;
+  --subtle: #9da79c;
+  --accent: #d8b377;
+  --accent-ink: #241e14;
+  --focus: #f8e2b6;
+  --success: #b2caaa;
+  --danger: #f1b8a9;
+  --font-ui: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-book: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  --text-xs: 20px;
+  --text-sm: 22px;
+  --text-md: 26px;
+  --text-lg: 30px;
+  --title-sm: 36px;
+  --title-md: 48px;
+  --title-lg: 72px;
+  --reader-size: 38px;
+  --reader-line: 1.8;
+  --reader-bg: #1c201d;
+  --reader-ink: #e9e7dc;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --space-10: 80px;
+  --safe: 72px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --focus-width: 3px;
+  --focus-scale: 1.025;
+  --duration: 180ms;
+  --duration-exit: 120ms;
+  --shadow: 0 20px 40px #00000028;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --duration: 0ms; --duration-exit: 0ms; --focus-scale: 1; }
+}
