@@ -1848,87 +1848,105 @@ public final class MainActivity extends Activity {
   }
 
   private void showSettings() {
-    shell("settings", "设置", "让文字与眼睛，保持舒适的距离。");
-    add(body, heading(this, "阅读", 18), -1, 36);
-    LinearLayout font = horizontal(this);
-    add(font, text(this, "字号  " + preferences.getInt("font", 22), 14, TEXT), 125, 40);
-    TextView first =
-        action(
-            font,
-            "－",
+    View previous = route.equals("settings") && root != null ? root.findFocus() : null;
+    String anchor = previous == null ? "settings-font-less" : String.valueOf(previous.getTag());
+    shell("settings", "设置", "全局阅读默认值 · 本书独立排版不受影响");
+    ReadingStyle style = ReadingStyle.defaults(preferences);
+    ReadingPanel.section(body, "字号 · " + style.font + " 号");
+    ReadingPanel.row(
+        body,
+        globalSetting(
+            "减小字号",
+            "font-less",
             false,
             () -> {
-              preferences
-                  .edit()
-                  .putInt("font", Math.max(16, preferences.getInt("font", 22) - 2))
-                  .apply();
+              style.font = Math.max(16, style.font - 2);
+              style.saveDefaults(preferences);
               showSettings();
-            });
-    action(
-        font,
-        "＋",
-        false,
-        () -> {
-          preferences
-              .edit()
-              .putInt("font", Math.min(32, preferences.getInt("font", 22) + 2))
-              .apply();
-          showSettings();
-        });
-    action(
-        font,
-        preferences.getBoolean("serif", true) ? "字体：宋体" : "字体：黑体",
-        false,
-        () -> {
-          preferences.edit().putBoolean("serif", !preferences.getBoolean("serif", true)).apply();
-          showSettings();
-        });
-    add(body, font, -1, 44);
-    gap(body, 12);
-    LinearLayout line = horizontal(this);
-    action(
-        line,
-        "行距：紧凑",
-        false,
-        () -> {
-          preferences.edit().putFloat("line", 1.45f).apply();
-          showSettings();
-        });
-    action(
-        line,
-        "行距：舒展",
-        false,
-        () -> {
-          preferences.edit().putFloat("line", 1.65f).apply();
-          showSettings();
-        });
-    action(
-        line,
-        "行距：宽松",
-        false,
-        () -> {
-          preferences.edit().putFloat("line", 1.85f).apply();
-          showSettings();
-        });
-    add(body, line, -1, 44);
-    gap(body, 20);
-    add(body, heading(this, "外观", 18), -1, 36);
-    LinearLayout paper = horizontal(this);
-    String[] labels = {"暗色书房", "暖纸色", "墨黑"};
-    for (int i = 0; i < labels.length; i++) {
-      int index = i;
-      action(
-          paper,
-          labels[i],
-          preferences.getInt("paper", 0) == i,
-          () -> {
-            preferences.edit().putInt("paper", index).apply();
-            showSettings();
-          });
+            }),
+        globalSetting(
+            "增大字号",
+            "font-more",
+            false,
+            () -> {
+              style.font = Math.min(40, style.font + 2);
+              style.saveDefaults(preferences);
+              showSettings();
+            }));
+    ReadingPanel.section(body, "字体");
+    ReadingPanel.row(
+        body,
+        globalSetting(
+            "宋体",
+            "font-serif",
+            style.serif,
+            () -> {
+              style.serif = true;
+              style.saveDefaults(preferences);
+              showSettings();
+            }),
+        globalSetting(
+            "黑体",
+            "font-sans",
+            !style.serif,
+            () -> {
+              style.serif = false;
+              style.saveDefaults(preferences);
+              showSettings();
+            }));
+    ReadingPanel.section(body, "行距");
+    String[] lineLabels = {"紧凑 1.45", "舒展 1.65", "宽松 1.85"};
+    float[] lineValues = {1.45f, 1.65f, 1.85f};
+    View[] spacing = new View[3];
+    for (int i = 0; i < spacing.length; i++) {
+      int choice = i;
+      spacing[i] =
+          globalSetting(
+              lineLabels[i],
+              "line-" + i,
+              Math.abs(style.line - lineValues[i]) < .01f,
+              () -> {
+                style.line = lineValues[choice];
+                style.saveDefaults(preferences);
+                showSettings();
+              });
     }
-    add(body, paper, -1, 44);
-    gap(body, 20);
-    add(body, heading(this, "存储与阅读方式", 18), -1, 36);
+    ReadingPanel.row(body, spacing);
+    ReadingPanel.section(body, "阅读栏宽");
+    String[] widthLabels = {"窄栏", "中栏", "宽栏"};
+    View[] widths = new View[3];
+    for (int i = 0; i < widths.length; i++) {
+      int choice = i;
+      widths[i] =
+          globalSetting(
+              widthLabels[i],
+              "width-" + i,
+              style.width == i,
+              () -> {
+                style.width = choice;
+                style.saveDefaults(preferences);
+                showSettings();
+              });
+    }
+    ReadingPanel.row(body, widths);
+    ReadingPanel.section(body, "默认纸色 · 显示亮度可在阅读菜单调整");
+    String[] paperLabels = {"暗色书房", "暖纸色", "墨黑"};
+    View[] papers = new View[3];
+    for (int i = 0; i < papers.length; i++) {
+      int choice = i;
+      papers[i] =
+          globalSetting(
+              paperLabels[i],
+              "paper-" + i,
+              style.paper == i,
+              () -> {
+                style.paper = choice;
+                style.saveDefaults(preferences);
+                showSettings();
+              });
+    }
+    ReadingPanel.row(body, papers);
+    ReadingPanel.section(body, "存储与阅读方式");
     TextView explanation =
         text(
             this,
@@ -1938,26 +1956,53 @@ public final class MainActivity extends Activity {
             MUTED);
     explanation.setLineSpacing(dp(this, 5), 1);
     add(body, explanation, -1, -2);
-    gap(body, 20);
-    LinearLayout actions = horizontal(this);
-    action(
-        actions,
-        "阅读操作说明",
-        false,
-        () -> message("正文：左右翻页，确定键打开菜单。\n下键：进入底部操作区，上键：回到正文。\n返回：关闭弹窗或返回书库。\n在线中断后可重试，不会自动下载整本书。"));
-    action(
-        actions,
-        "关于书房 TV",
-        false,
-        () ->
-            message(
-                "书房 TV 0.2.0-alpha.1（测试版）\n"
-                    + "独立编写的 Android TV 开源阅读器\n"
-                    + "Apache-2.0\n"
-                    + "github.com/spudhero/ShufangTV\n"
-                    + "支持 EPUB 文本、TXT、PDF；阿里、百度、夸克和 UC 网盘扫码直连。"));
-    add(body, actions, -1, 44);
-    focus(first);
+    gap(body, 16);
+    ReadingPanel.row(
+        body,
+        globalSetting(
+            "阅读操作说明",
+            "help",
+            false,
+            () ->
+                message(
+                    "正文：左右翻页，确定键打开菜单。\n"
+                        + "下键进入操作区，上键返回正文。\n"
+                        + "正文搜索仅检索当前章或片段。\n"
+                        + "选段时上下键移动，确定键保存并备注。\n"
+                        + "朗读进入后台会暂停；自动翻页关菜单后恢复，手动暂停需主动继续。\n"
+                        + "返回键逐层关闭弹窗或回到书库。")),
+        globalSetting(
+            "关于书房 TV",
+            "about",
+            false,
+            () ->
+                message(
+                    "书房 TV "
+                        + appVersion()
+                        + "（测试版）\n"
+                        + "独立编写的 Android TV 开源阅读器\nApache-2.0\ngithub.com/spudhero/ShufangTV\n"
+                        + "支持 EPUB 文本、TXT、PDF；阿里、百度、夸克和 UC 网盘扫码直连。")));
+    View restore = root.findViewWithTag(anchor);
+    focus(restore != null ? restore : root.findViewWithTag("settings-font-less"));
+  }
+
+  private TextView globalSetting(String label, String key, boolean selected, Runnable action) {
+    TextView view = ReadingPanel.option(this, label, selected, action);
+    view.setTag("settings-" + key);
+    view.setOnClickListener(
+        v -> {
+          v.requestFocus();
+          action.run();
+        });
+    return view;
+  }
+
+  private String appVersion() {
+    try {
+      return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+    } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+      return "未知版本";
+    }
   }
 
   private void openGuide() {
@@ -1984,6 +2029,12 @@ public final class MainActivity extends Activity {
             + "左右键翻页；确定键打开目录、书签和排版菜单。下键进入底部操作区，上键回到正文。返回键逐层返回。\n\n"
             + "阅读位置\n\n"
             + "书房按章节和文字位置保存进度，改变字号、行距后继续读。在线与离线副本共享同一个阅读位置。\n\n"
+            + "排版与正文搜索\n\n"
+            + "阅读菜单可设置窄、中、宽栏，以及全局默认或仅本书排版。正文搜索只检索当前章节或片段；退出搜索可回到原位置。\n\n"
+            + "朗读、收藏与自动翻页\n\n"
+            + "朗读使用电视的中文语音引擎，离开应用会暂停。收藏正文时用上下键选段、确定键添加备注；我的书签可管理和导出。自动翻页关菜单后恢复，手动暂停或翻页后需主动继续。\n\n"
+            + "整理书库\n\n"
+            + "书籍菜单可置顶、加入书单并标为待读、在读或已读；这些操作不移动来源文件。\n\n"
             + "开源与边界\n\n"
             + "所有应用源码在 github.com/spudhero/ShufangTV。首版不支持带 DRM 的电子书和纯图片 EPUB；PDF"
             + " 以页面显示。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
@@ -2085,7 +2136,8 @@ public final class MainActivity extends Activity {
 
   private void message(String value) {
     if (!isFinishing() && !destroyed)
-      new AlertDialog.Builder(this)
+      new ReadingDialog(this)
+          .width(480)
           .setTitle("书房 TV")
           .setMessage(value)
           .setPositiveButton("知道了", null)

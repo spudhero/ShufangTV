@@ -50,7 +50,7 @@ EPUB 先读取 ZIP 中央目录，再按 spine 加载当前章节。ZIP 原始�
 5. “收藏正文段落”用上下键选择，确定键保存并写备注；在“我的书签”选择卡片管理和回到原文，“导出收藏”选择格式后保存。
 6. “朗读正文”的语速和停止时间位于“朗读设置”；应用进入后台会暂停，返回后需主动继续。自动翻页与朗读、搜索、选段互斥。
 
-阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)、[工作区验证](docs/READING-VALIDATION.md)。这些修改尚未发布到上面的版本下载页。
+阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)、[工作区验证](docs/READING-VALIDATION.md)。主干当前开发版为 `0.3.0-alpha.1`；上面的下载页保留已发布的 `0.2.0-alpha.2`。合并、整体 UI 复查与实机进度见 [集成记录](docs/INTEGRATION-2026-11-06.md) 和 [项目进度](docs/PROGRESS.md)。
 
 网盘由本应用直接授权和读取，不需要 CloudDrive2 服务或第三方登录中转。会话失效时重新扫码；阿里令牌支持自动续期。原文件能否按需读取取决于网盘权限和 Range 支持，拒绝时会提示，不自动下载整本书。SMB / WebDAV 的局域网 HTTP 仍可用，网盘连接使用 HTTPS。
 
