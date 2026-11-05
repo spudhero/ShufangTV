@@ -3,6 +3,7 @@ package io.github.spudhero.shufangtv.reader;
 import android.content.Context;
 import android.graphics.*;
 import android.text.*;
+import android.text.style.BackgroundColorSpan;
 import android.text.style.LeadingMarginSpan;
 import android.view.View;
 import java.util.*;
@@ -16,6 +17,8 @@ public final class PagedTextView extends View {
   private float size = 22, line = 1.65f;
   private int ink = 0xffe9e7dc;
   private boolean serif = true;
+  private int widthPreset = 2;
+  private int highlightStart = -1, highlightEnd = -1;
   private final Map<Integer, Integer> previous = new HashMap<>();
   public Runnable onPageReady;
 
@@ -27,7 +30,10 @@ public final class PagedTextView extends View {
   }
 
   public void setContent(String value, int position) {
-    if (!text.equals(value)) previous.clear();
+    if (!text.equals(value)) {
+      previous.clear();
+      highlightStart = highlightEnd = -1;
+    }
     text = value;
     offset = Math.max(0, Math.min(position, text.length()));
     if (offset > 0 && offset < text.length() && Character.isLowSurrogate(text.charAt(offset)))
@@ -36,10 +42,15 @@ public final class PagedTextView extends View {
   }
 
   public void setAppearance(float size, float line, boolean serif, int ink) {
+    setAppearance(size, line, serif, ink, widthPreset);
+  }
+
+  public void setAppearance(float size, float line, boolean serif, int ink, int widthPreset) {
     this.size = size;
     this.line = line;
     this.serif = serif;
     this.ink = ink;
+    this.widthPreset = Math.max(0, Math.min(2, widthPreset));
     previous.clear();
     reflow();
   }
@@ -54,6 +65,17 @@ public final class PagedTextView extends View {
 
   public int totalChars() {
     return text.length();
+  }
+
+  public String content() {
+    return text;
+  }
+
+  public void highlight(int start, int end) {
+    if (highlightStart == start && highlightEnd == end) return;
+    highlightStart = start;
+    highlightEnd = end;
+    reflow();
   }
 
   public String excerpt() {
@@ -90,11 +112,18 @@ public final class PagedTextView extends View {
     return Math.round(getResources().getDisplayMetrics().density * 32);
   }
 
+  // Layout's API-23 constant is the same value as LineBreaker's API-29 IntDef.
+  @android.annotation.SuppressLint("WrongConstant")
   private StaticLayout build(String value, int start) {
     paint.setTextSize(size * getResources().getDisplayMetrics().scaledDensity);
     paint.setColor(ink);
     paint.setTypeface(Typeface.create(serif ? "serif" : "sans-serif", Typeface.NORMAL));
     SpannableString span = new SpannableString(value);
+    int hStart = Math.max(0, highlightStart - start);
+    int hEnd = Math.min(value.length(), highlightEnd - start);
+    if (hStart < hEnd)
+      span.setSpan(
+          new BackgroundColorSpan(0x668c713e), hStart, hEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     int pos = 0;
     while (pos < value.length()) {
       int end = value.indexOf('\n', pos);
@@ -107,12 +136,16 @@ public final class PagedTextView extends View {
           Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
       pos = end + 1;
     }
-    return StaticLayout.Builder.obtain(
-            span, 0, span.length(), paint, Math.max(1, getWidth() - padding() * 2))
+    return StaticLayout.Builder.obtain(span, 0, span.length(), paint, columnWidth())
         .setIncludePad(false)
         .setLineSpacing(0, line)
-        .setBreakStrategy(android.graphics.text.LineBreaker.BREAK_STRATEGY_SIMPLE)
+        .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE)
         .build();
+  }
+
+  private int columnWidth() {
+    float ratio = widthPreset == 0 ? .62f : widthPreset == 1 ? .8f : 1f;
+    return Math.max(1, Math.round(Math.max(1, getWidth() - padding() * 2) * ratio));
   }
 
   private void reflow() {
@@ -143,7 +176,7 @@ public final class PagedTextView extends View {
     super.onDraw(canvas);
     if (layout != null) {
       canvas.save();
-      canvas.translate(padding(), padding());
+      canvas.translate((getWidth() - columnWidth()) / 2f, padding());
       layout.draw(canvas);
       canvas.restore();
     }

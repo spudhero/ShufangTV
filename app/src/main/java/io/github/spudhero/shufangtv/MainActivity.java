@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 /** Independent native Android TV interface; no WebView and no embedded reference APK. */
 public final class MainActivity extends Activity {
   private static final int OPEN_DOCUMENT = 31;
+  private static final int EXPORT_NOTES = 32;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private LibraryStore library;
   private SourceStore sources;
@@ -36,6 +37,7 @@ public final class MainActivity extends Activity {
   private SourceConfig browsing;
   private String browserFocusPath = "";
   private boolean sortTitle;
+  private String shelfGroup = "", shelfState = "", shelfFocus = "", markFocus = "", markKind = "";
   private volatile int operation;
   private volatile boolean destroyed;
   private NetworkLibrary network;
@@ -262,20 +264,16 @@ public final class MainActivity extends Activity {
   private void showLibrary() {
     shell("library", "我的书库", library.books.size() + " 本书 · 在线与离线分别打开");
     LinearLayout toolbar = horizontal(this);
-    String[][] filters = {{"all", "全部"}, {"online", "在线书籍"}, {"offline", "本地 / 离线"}};
-    TextView first = null;
-    for (String[] f : filters) {
-      TextView b =
-          action(
-              toolbar,
-              f[1],
-              filter.equals(f[0]),
-              () -> {
-                filter = f[0];
-                showLibrary();
-              });
-      if (first == null) first = b;
-    }
+    TextView group =
+        action(toolbar, shelfGroup.isEmpty() ? "全部书单" : shelfGroup, false, this::chooseShelfGroup);
+    group.setTag("shelf-group");
+    TextView source =
+        action(
+            toolbar,
+            filter.equals("all") ? "全部来源" : filter.equals("online") ? "在线书籍" : "本地 / 离线",
+            false,
+            this::chooseShelfSource);
+    source.setTag("shelf-source");
     View space = new View(this);
     toolbar.addView(space, new LinearLayout.LayoutParams(0, 1, 1));
     action(toolbar, query.isEmpty() ? "搜索" : query, false, this::search);
@@ -287,10 +285,33 @@ public final class MainActivity extends Activity {
           sortTitle = !sortTitle;
           showLibrary();
         });
-    add(body, toolbar, -1, 44);
+    add(body, toolbar, -1, 48);
+    gap(body, 8);
+    LinearLayout states = horizontal(this);
+    String[] ids = {"", "unread", "reading", "finished"};
+    String[] labels = {"全部", "待读", "在读", "已读"};
+    for (int i = 0; i < ids.length; i++) {
+      final String state = ids[i];
+      TextView tab =
+          ReadingPanel.option(
+              this,
+              labels[i],
+              shelfState.equals(state),
+              () -> {
+                shelfState = state;
+                shelfFocus = "shelf-state-" + state;
+                showLibrary();
+              });
+      tab.setTag("shelf-state-" + state);
+      add(states, tab, 88, 44);
+      gap(states, 8);
+    }
+    add(body, states, -1, 44);
     gap(body, 16);
     List<BookRecord> books = new ArrayList<>();
-    for (BookRecord b : library.recent()) {
+    for (BookRecord b : library.shelf(sortTitle)) {
+      if (!shelfGroup.isEmpty() && !shelfGroup.equals(b.group)) continue;
+      if (!shelfState.isEmpty() && !shelfState.equals(b.readState)) continue;
       if (filter.equals("online") && !b.hasOnline() || filter.equals("offline") && !b.hasOffline())
         continue;
       if (!query.isEmpty()
@@ -299,27 +320,35 @@ public final class MainActivity extends Activity {
               .contains(query.toLowerCase(Locale.ROOT))) continue;
       books.add(b);
     }
-    if (sortTitle) books.sort(Comparator.comparing(b -> b.title));
     if (books.isEmpty()) {
       gap(body, 24);
-      add(body, heading(this, query.isEmpty() ? "书架还留着位置" : "没有找到这本书", 21), -1, 40);
-      add(body, text(this, "可以打开本地文件，或连接家庭书库。", 13, MUTED), -1, 30);
+      boolean filtered =
+          !query.isEmpty()
+              || !shelfGroup.isEmpty()
+              || !shelfState.isEmpty()
+              || !filter.equals("all");
+      add(body, heading(this, filtered ? "没有符合条件的书" : "书架还留着位置", 21), -1, 40);
+      add(body, text(this, filtered ? "可以清除筛选，查看所有书籍。" : "可以打开本地文件，或连接家庭书库。", 13, MUTED), -1, 30);
       TextView reset =
           button(
               this,
-              query.isEmpty() ? "添加书籍" : "清除搜索",
+              filtered ? "清除筛选" : "添加书籍",
               true,
               () -> {
-                if (!query.isEmpty()) {
+                if (filtered) {
                   query = "";
+                  shelfGroup = "";
+                  shelfState = "";
+                  filter = "all";
                   showLibrary();
                 } else showSources();
               });
       add(body, reset, 150, 40);
       focus(reset);
     } else {
-      addBookGrid(books, 5);
-      focus(first);
+      addBookGrid(books, 4);
+      View restore = root.findViewWithTag(shelfFocus);
+      focus(restore != null ? restore : root.findViewWithTag("book-" + books.get(0).id));
     }
   }
 
@@ -336,32 +365,45 @@ public final class MainActivity extends Activity {
         card.setFocusableInTouchMode(true);
         card.setClickable(true);
         card.setTag("book-" + book.id);
-        card.setContentDescription(book.title + "，" + availability(book));
+        card.setContentDescription(
+            book.title
+                + "，"
+                + BookOrganization.stateLabel(book)
+                + (book.pinned ? "，已置顶" : "")
+                + "，"
+                + availability(book));
         card.setBackground(panel(this, BG, 0));
         card.setOnFocusChangeListener(
             (v, focused) ->
                 v.setBackground(panel(this, focused ? SURFACE : BG, focused ? FOCUS : 0)));
         card.setOnClickListener(v -> bookActions(book));
-        add(card, new CoverView(this, book.title, book.author), 85, 119);
+        add(card, new CoverView(this, book.title, book.author), 96, 134);
         gap(card, 8);
         TextView title = text(this, book.title, 14, TEXT);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setGravity(Gravity.CENTER);
         add(card, title, -1, 38);
-        TextView author =
+        TextView source =
+            text(
+                this, availability(book) + " · " + book.format.toUpperCase(Locale.ROOT), 11, MUTED);
+        source.setMaxLines(1);
+        source.setEllipsize(TextUtils.TruncateAt.END);
+        source.setGravity(Gravity.CENTER);
+        add(card, source, -1, 24);
+        TextView state =
             text(
                 this,
-                book.author.isEmpty() ? book.format.toUpperCase(Locale.ROOT) : book.author,
-                11,
-                MUTED);
-        author.setSingleLine(true);
-        author.setEllipsize(TextUtils.TruncateAt.END);
-        author.setGravity(Gravity.CENTER);
-        add(card, author, -1, 24);
-        TextView mode = text(this, availability(book), 10, ACCENT);
-        mode.setGravity(Gravity.CENTER);
-        add(card, mode, -1, 24);
+                BookOrganization.stateLabel(book),
+                12,
+                book.readState.equals("reading") ? ACCENT : MUTED);
+        state.setGravity(Gravity.CENTER);
+        add(card, state, -1, 22);
+        if (book.pinned) {
+          TextView pin = text(this, "置顶", 10, ACCENT);
+          pin.setGravity(Gravity.CENTER);
+          add(card, pin, -1, 18);
+        }
         row.addView(card, new LinearLayout.LayoutParams(0, -2, 1));
       }
       for (int i = books.size() - start; i < columns; i++)
@@ -375,11 +417,45 @@ public final class MainActivity extends Activity {
     return b.hasOnline() && b.hasOffline() ? "在线 · 已存本地" : b.hasOnline() ? "在线书籍" : "本地 / 离线";
   }
 
+  private void chooseShelfGroup() {
+    List<String> names = library.groups();
+    List<String> labels = new ArrayList<>();
+    labels.add("全部书单");
+    labels.addAll(names);
+    shelfFocus = "shelf-group";
+    new ReadingDialog(this)
+        .setTitle("按书单查看")
+        .setItems(
+            labels.toArray(new String[0]),
+            (d, i) -> {
+              shelfGroup = i == 0 ? "" : names.get(i - 1);
+              showLibrary();
+            })
+        .setNegativeButton("返回", null)
+        .show();
+  }
+
+  private void chooseShelfSource() {
+    shelfFocus = "shelf-source";
+    new ReadingDialog(this)
+        .setTitle("书籍来源")
+        .setSingleChoiceItems(
+            new String[] {"全部来源", "在线书籍", "本地 / 离线"},
+            filter.equals("all") ? 0 : filter.equals("online") ? 1 : 2,
+            (d, i) -> {
+              filter = new String[] {"all", "online", "offline"}[i];
+              d.dismiss();
+              showLibrary();
+            })
+        .setNegativeButton("返回", null)
+        .show();
+  }
+
   private void search() {
     EditText field = new EditText(this);
     field.setSingleLine();
     field.setText(query);
-    new AlertDialog.Builder(this)
+    new ReadingDialog(this)
         .setTitle("搜索书名或作者")
         .setView(field)
         .setPositiveButton(
@@ -399,13 +475,17 @@ public final class MainActivity extends Activity {
   }
 
   private void bookActions(BookRecord b) {
+    shelfFocus = "book-" + b.id;
     List<String> options = new ArrayList<>();
     if (b.hasOnline()) options.add("在线打开");
     if (b.hasOffline()) options.add("离线打开");
     if (b.hasOnline() && !b.hasOffline()) options.add("保存到本地");
     if (!b.offlineFile.isEmpty() && b.hasOnline()) options.add("删除离线副本");
+    options.add(b.pinned ? "取消置顶" : "置顶");
+    options.add("加入书单");
+    options.add("阅读状态");
     options.add("从书库移除");
-    new AlertDialog.Builder(this)
+    new ReadingDialog(this)
         .setTitle(b.title)
         .setItems(
             options.toArray(new String[0]),
@@ -424,6 +504,16 @@ public final class MainActivity extends Activity {
                 case "删除离线副本":
                   removeOffline(b);
                   break;
+                case "置顶":
+                case "取消置顶":
+                  new BookOrganization(this, library, this::showLibrary).pin(b);
+                  break;
+                case "加入书单":
+                  new BookOrganization(this, library, this::showLibrary).group(b);
+                  break;
+                case "阅读状态":
+                  new BookOrganization(this, library, this::showLibrary).state(b);
+                  break;
                 default:
                   removeBook(b);
               }
@@ -437,6 +527,10 @@ public final class MainActivity extends Activity {
   }
 
   private void openBook(BookRecord book, boolean online) {
+    openBook(book, online, null);
+  }
+
+  private void openBook(BookRecord book, boolean online, LibraryStore.Mark mark) {
     if (!online && !book.hasOffline()) {
       message("这本书还没有离线副本，请选择在线打开或保存到本地。");
       return;
@@ -453,6 +547,7 @@ public final class MainActivity extends Activity {
           returnRoute = previous;
           route = "reader";
           reader = new ReaderScreen(this, io, library, preferences, session, this::exitReader);
+          if (mark != null) reader.showMark(mark);
           setContentView(reader);
           save();
         });
@@ -468,60 +563,161 @@ public final class MainActivity extends Activity {
   }
 
   private void showBookmarks() {
-    shell("bookmarks", "我的书签", library.marks.size() + " 处停留，随时重读。");
+    shell("bookmarks", "我的书签", library.marks.size() + " 处书签与段落收藏，随时重读。");
     if (library.marks.isEmpty()) {
       gap(body, 30);
       add(body, heading(this, "留住让你停下来的文字", 23), -1, 44);
-      add(body, text(this, "阅读时按确定键，在菜单里添加书签。", 14, MUTED), -1, 36);
+      add(body, text(this, "阅读时按确定键，在菜单里添加书签或收藏段落。", 14, MUTED), -1, 36);
       focus(root.findViewWithTag("nav-bookmarks"));
       return;
     }
-    for (LibraryStore.Mark mark : new ArrayList<>(library.marks)) {
-      BookRecord b = library.find(mark.bookId);
-      if (b == null) continue;
-      LinearLayout row = horizontal(this);
-      TextView open =
-          button(
+    LinearLayout toolbar = horizontal(this);
+    String[] kinds = {"", "position", "note"};
+    String[] labels = {"全部", "位置书签", "段落收藏"};
+    for (int i = 0; i < kinds.length; i++) {
+      final String kind = kinds[i];
+      TextView tab =
+          ReadingPanel.option(
               this,
-              b.title
-                  + "\n"
-                  + (mark.excerpt.isEmpty() ? "第 " + (mark.chapter + 1) + " 章" : mark.excerpt),
-              false,
+              labels[i],
+              kind.equals(markKind),
               () -> {
-                b.chapter = mark.chapter;
-                b.offset = mark.offset;
-                b.pdfPage = mark.pdfPage;
-                b.txtByte = mark.txtByte;
-                openBook(b, mark.mode.equals("online") && b.hasOnline());
+                markKind = kind;
+                markFocus = "mark-kind-" + kind;
+                showBookmarks();
               });
-      open.setGravity(Gravity.CENTER_VERTICAL);
-      open.setMaxLines(3);
-      row.addView(open, new LinearLayout.LayoutParams(0, dp(this, 76), 1));
-      gap(row, 12);
-      action(
-          row,
-          "移除",
-          false,
-          () ->
-              new AlertDialog.Builder(this)
-                  .setTitle("移除此书签？")
-                  .setMessage("书籍和阅读位置会保留。")
-                  .setPositiveButton(
-                      "移除",
-                      (d, w) -> {
-                        library.marks.remove(mark);
-                        save();
-                        showBookmarks();
-                      })
-                  .setNegativeButton("取消", null)
-                  .show());
-      add(body, row, -1, 82);
-      gap(body, 10);
+      tab.setTag("mark-kind-" + kind);
+      add(toolbar, tab, 104, 44);
+      gap(toolbar, 8);
     }
-    focus(
-        body.getChildAt(0).findFocus() != null
-            ? body.getChildAt(0).findFocus()
-            : ((LinearLayout) body.getChildAt(0)).getChildAt(0));
+    toolbar.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+    action(
+        toolbar,
+        "导出收藏",
+        false,
+        () ->
+            new ReadingDialog(this)
+                .setTitle("导出书签与收藏")
+                .setMessage("包含已保存的摘录和备注。")
+                .setItems(new String[] {"文本", "Markdown"}, (d, i) -> exportNotes(i == 1))
+                .setNegativeButton("返回", null)
+                .show());
+    add(body, toolbar, -1, 44);
+    gap(body, 12);
+    int count = 0;
+    for (LibraryStore.Mark mark : new ArrayList<>(library.marks)) {
+      BookRecord book = library.find(mark.bookId);
+      if (book == null
+          || markKind.equals("note") && !mark.isNote()
+          || markKind.equals("position") && mark.isNote()) continue;
+      count++;
+      LinearLayout card = vertical(this);
+      card.setTag("mark-" + mark.id);
+      card.setPadding(dp(this, 16), dp(this, 14), dp(this, 16), dp(this, 14));
+      card.setFocusable(true);
+      card.setFocusableInTouchMode(true);
+      card.setClickable(true);
+      card.setBackground(panel(this, SURFACE, 0));
+      card.setOnFocusChangeListener(
+          (view, focused) ->
+              view.setBackground(panel(this, focused ? 0xff45483a : SURFACE, focused ? FOCUS : 0)));
+      card.setOnClickListener(view -> markActions(book, mark));
+      card.setContentDescription(
+          book.title
+              + "，"
+              + (mark.isNote() ? "段落收藏" : "位置书签")
+              + (mark.note.isEmpty() ? "" : "，备注：" + mark.note));
+      TextView title = text(this, (mark.isNote() ? "段落收藏 · " : "位置书签 · ") + book.title, 13, ACCENT);
+      title.setMaxLines(1);
+      title.setEllipsize(TextUtils.TruncateAt.END);
+      add(card, title, -1, 22);
+      TextView excerpt =
+          heading(
+              this, mark.excerpt.isEmpty() ? "第 " + (mark.chapter + 1) + " 章" : mark.excerpt, 16);
+      excerpt.setMaxLines(2);
+      excerpt.setEllipsize(TextUtils.TruncateAt.END);
+      excerpt.setLineSpacing(dp(this, 3), 1f);
+      add(card, excerpt, -1, 48);
+      if (!mark.note.isEmpty()) {
+        TextView note = text(this, "备注：" + mark.note, 13, MUTED);
+        note.setMaxLines(1);
+        note.setEllipsize(TextUtils.TruncateAt.END);
+        add(card, note, -1, 22);
+      }
+      add(body, card, -1, 124);
+      gap(body, 12);
+    }
+    if (count == 0) add(body, text(this, "这里还没有记录，阅读时可随手保存。", 14, MUTED), -1, 48);
+    View restore = body.findViewWithTag(markFocus);
+    focus(restore != null ? restore : toolbar.getChildAt(0));
+  }
+
+  private void markActions(BookRecord book, LibraryStore.Mark mark) {
+    markFocus = "mark-" + mark.id;
+    new ReadingDialog(this)
+        .width(480)
+        .setTitle(mark.isNote() ? "段落收藏" : "位置书签")
+        .setMessage(
+            book.title + "\n\n" + mark.excerpt + (mark.note.isEmpty() ? "" : "\n\n备注：" + mark.note))
+        .setItems(
+            new String[] {"回到原文", "编辑备注", "移除"},
+            (d, i) -> {
+              if (i == 0) {
+                book.chapter = mark.chapter;
+                book.offset = mark.offset;
+                book.pdfPage = mark.pdfPage;
+                book.txtByte = mark.txtByte;
+                openBook(book, mark.mode.equals("online") && book.hasOnline(), mark);
+              } else if (i == 1) NoteEditor.edit(this, library, mark, this::showBookmarks);
+              else
+                new ReadingDialog(this)
+                    .setTitle("移除此书签？")
+                    .setMessage("书籍和阅读位置会保留。")
+                    .setPositiveButton(
+                        "移除",
+                        (confirm, w) -> {
+                          try {
+                            library.removeMark(mark);
+                            showBookmarks();
+                          } catch (IOException e) {
+                            message("书签未能移除，请稍后重试");
+                          }
+                        })
+                    .setNegativeButton("取消", null)
+                    .show();
+            })
+        .setNegativeButton("返回", null)
+        .show();
+  }
+
+  private File noteExportFile() {
+    return new File(getCacheDir(), "pending-notes-export.txt");
+  }
+
+  private void exportNotes(boolean markdown) {
+    String snapshot = NoteExport.render(library, markdown);
+    job(
+        "准备笔记导出",
+        () -> {
+          File file = noteExportFile();
+          try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(snapshot.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+          }
+          return file;
+        },
+        file -> {
+          Intent intent =
+              new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                  .addCategory(Intent.CATEGORY_OPENABLE)
+                  .setType(markdown ? "text/markdown" : "text/plain")
+                  .putExtra(Intent.EXTRA_TITLE, "书房TV-书签与笔记." + (markdown ? "md" : "txt"));
+          try {
+            startActivityForResult(intent, EXPORT_NOTES);
+          } catch (ActivityNotFoundException e) {
+            file.delete();
+            message("系统未提供文件保存界面，请启用系统文件应用后再试");
+          }
+        });
   }
 
   private void showSources() {
@@ -1534,6 +1730,31 @@ public final class MainActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, Intent intent) {
     super.onActivityResult(request, result, intent);
+    if (request == EXPORT_NOTES) {
+      File snapshot = noteExportFile();
+      if (result != RESULT_OK || intent == null || intent.getData() == null) {
+        snapshot.delete();
+        return;
+      }
+      Uri destination = intent.getData();
+      job(
+          "导出笔记",
+          () -> {
+            try (InputStream in = new FileInputStream(snapshot);
+                OutputStream out = getContentResolver().openOutputStream(destination, "wt")) {
+              if (out == null) throw new IOException("无法写入所选位置");
+              byte[] buffer = new byte[16 * 1024];
+              int count;
+              while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            }
+            return true;
+          },
+          done -> {
+            snapshot.delete();
+            message("书签与笔记已导出");
+          });
+      return;
+    }
     if (request != OPEN_DOCUMENT
         || result != RESULT_OK
         || intent == null
@@ -1878,6 +2099,7 @@ public final class MainActivity extends Activity {
       return;
     }
     if (reader != null) {
+      if (reader.back()) return;
       exitReader();
       return;
     }
@@ -1918,8 +2140,14 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onPause() {
-    if (reader != null) reader.save();
+    if (reader != null) reader.foreground(false);
     super.onPause();
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    if (reader != null) reader.foreground(true);
   }
 
   @Override

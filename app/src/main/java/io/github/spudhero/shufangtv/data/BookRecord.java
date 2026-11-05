@@ -1,7 +1,10 @@
 package io.github.spudhero.shufangtv.data;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -17,6 +20,18 @@ public final class BookRecord {
   public String lastMode = "offline", documentUri = "";
   public int chapter, offset, pdfPage;
   public long txtByte, size, lastRead;
+  public ReadingStyle readingStyle;
+  public boolean pinned;
+  public String group = "", readState = "unread";
+  public final List<String> searchHistory = new ArrayList<>();
+
+  public void rememberSearch(String query) {
+    query = query.trim();
+    if (query.isEmpty() || query.length() > 128) return;
+    searchHistory.remove(query);
+    searchHistory.add(0, query);
+    while (searchHistory.size() > 8) searchHistory.remove(searchHistory.size() - 1);
+  }
 
   public boolean hasOnline() {
     return !sourceId.isEmpty();
@@ -52,6 +67,11 @@ public final class BookRecord {
         .put("txtByte", txtByte)
         .put("size", size)
         .put("lastRead", lastRead)
+        .put("readingStyle", readingStyle == null ? JSONObject.NULL : readingStyle.json())
+        .put("searchHistory", new JSONArray(searchHistory))
+        .put("pinned", pinned)
+        .put("group", group)
+        .put("readState", readState)
         .put("documentUri", documentUri);
   }
 
@@ -78,6 +98,16 @@ public final class BookRecord {
     b.txtByte = Math.max(0, j.optLong("txtByte"));
     b.size = Math.max(0, j.optLong("size"));
     b.lastRead = j.optLong("lastRead");
+    b.pinned = j.optBoolean("pinned", false);
+    b.group = j.optString("group", "");
+    b.readState = j.optString("readState", b.lastRead > 0 ? "reading" : "unread");
+    if (!b.readState.equals("reading") && !b.readState.equals("finished")) b.readState = "unread";
+    JSONObject style = j.optJSONObject("readingStyle");
+    if (style != null) b.readingStyle = ReadingStyle.from(style);
+    JSONArray history = j.optJSONArray("searchHistory");
+    if (history != null)
+      for (int i = Math.min(history.length(), 8) - 1; i >= 0; i--)
+        b.rememberSearch(history.optString(i, ""));
     return b;
   }
 }

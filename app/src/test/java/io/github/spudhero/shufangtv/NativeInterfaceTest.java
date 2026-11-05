@@ -51,7 +51,7 @@ public class NativeInterfaceTest {
       activity.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER));
       AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
       assertTrue(dialog.isShowing());
-      dialog.getListView().performItemClick(null, 1, 1);
+      dialog.getWindow().getDecorView().findViewWithTag("tool:添加书签").performClick();
       LibraryStore saved = new LibraryStore(activity);
       assertEquals(1, saved.marks.size());
       assertEquals(position, saved.marks.get(0).offset);
@@ -74,8 +74,11 @@ public class NativeInterfaceTest {
       assertNotNull(findText(decor, "添加家庭书库"));
       render(decor, "home-empty.png");
       decor.findViewWithTag("nav-library").performClick();
-      assertNotNull(findText(decor, "在线书籍"));
-      assertNotNull(findText(decor, "本地 / 离线"));
+      findText(decor, "全部来源").performClick();
+      AlertDialog sources = ShadowAlertDialog.getLatestAlertDialog();
+      assertEquals("在线书籍", sources.getListView().getItemAtPosition(1));
+      assertEquals("本地 / 离线", sources.getListView().getItemAtPosition(2));
+      sources.dismiss();
       render(decor, "library-empty.png");
       decor.findViewWithTag("nav-sources").performClick();
       assertNotNull(decor.findViewWithTag("cloud-login-aliyun"));
