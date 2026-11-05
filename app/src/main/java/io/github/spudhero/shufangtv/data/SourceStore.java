@@ -19,10 +19,16 @@ import org.json.JSONObject;
 public final class SourceStore {
   private static final String ALIAS = "io.github.spudhero.shufangtv.sources";
   private final SharedPreferences preferences;
+  private final SecretKey keyOverride;
   public final List<SourceConfig> sources = new ArrayList<>();
   public String loadError;
 
   public SourceStore(Context context) {
+    this(context, null);
+  }
+
+  SourceStore(Context context, SecretKey keyOverride) {
+    this.keyOverride = keyOverride;
     preferences = context.getSharedPreferences("connections", Context.MODE_PRIVATE);
     String value = preferences.getString("encrypted", null);
     if (value == null) return;
@@ -46,6 +52,9 @@ public final class SourceStore {
         s.username = j.optString("username");
         s.password = j.optString("password");
         s.domain = j.optString("domain");
+        s.providerId = j.optString("providerId");
+        s.accountId = j.optString("accountId");
+        s.rootLabel = j.optString("rootLabel");
         s.https = j.optBoolean("https");
         sources.add(s);
       }
@@ -75,6 +84,9 @@ public final class SourceStore {
                 .put("username", s.username)
                 .put("password", s.password)
                 .put("domain", s.domain)
+                .put("providerId", s.providerId)
+                .put("accountId", s.accountId)
+                .put("rootLabel", s.rootLabel)
                 .put("https", s.https));
       Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
       c.init(Cipher.ENCRYPT_MODE, key());
@@ -93,6 +105,7 @@ public final class SourceStore {
   }
 
   private SecretKey key() throws Exception {
+    if (keyOverride != null) return keyOverride;
     KeyStore store = KeyStore.getInstance("AndroidKeyStore");
     store.load(null);
     if (store.containsAlias(ALIAS))

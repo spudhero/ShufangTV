@@ -18,14 +18,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** A tiny loopback-only HTTP fixture: no external NAS, account, book or SDK-dependent server. */
-final class LocalHttpFixture implements AutoCloseable {
-  interface Handler {
+public final class LocalHttpFixture implements AutoCloseable {
+  public interface Handler {
     Reply handle(Incoming request) throws IOException;
   }
 
-  static final class Incoming {
-    final String method, path;
-    final Map<String, String> headers;
+  public static final class Incoming {
+    public final String method, path;
+    public final Map<String, String> headers;
 
     Incoming(String method, String path, Map<String, String> headers) {
       this.method = method;
@@ -34,17 +34,17 @@ final class LocalHttpFixture implements AutoCloseable {
     }
   }
 
-  static final class Reply {
+  public static final class Reply {
     final int status;
     final byte[] bytes;
     final Map<String, String> headers = new LinkedHashMap<>();
 
-    Reply(int status, byte[] bytes) {
+    public Reply(int status, byte[] bytes) {
       this.status = status;
       this.bytes = bytes;
     }
 
-    Reply header(String name, String value) {
+    public Reply header(String name, String value) {
       headers.put(name, value);
       return this;
     }
@@ -64,9 +64,9 @@ final class LocalHttpFixture implements AutoCloseable {
             return t;
           });
   final Thread acceptor;
-  volatile Handler handler;
+  public volatile Handler handler;
 
-  LocalHttpFixture(Handler handler) throws IOException {
+  public LocalHttpFixture(Handler handler) throws IOException {
     this.handler = handler;
     server = new ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"));
     acceptor =
@@ -88,7 +88,7 @@ final class LocalHttpFixture implements AutoCloseable {
     acceptor.start();
   }
 
-  String origin() {
+  public String origin() {
     return "http://127.0.0.1:" + server.getLocalPort();
   }
 

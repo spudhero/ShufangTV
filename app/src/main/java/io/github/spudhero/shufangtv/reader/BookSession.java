@@ -44,7 +44,7 @@ public final class BookSession implements AutoCloseable {
       if (online) {
         SourceConfig config = sources.find(record.sourceId);
         if (config == null) throw new IOException("书库连接已移除，请重新添加");
-        remote = new NetworkLibrary().open(config, record.remotePath);
+        remote = new NetworkLibrary(context).open(config, record.remotePath);
         record.size = remote.length();
       }
       if (record.format.equals("epub")) {

@@ -6,10 +6,13 @@
 
 来源适配器统一实现 `NetworkLibrary` 的列目录、打开随机读文件与显式下载三个动作。`RemoteFile` 只暴露长度、按位置读取和关闭，防止在线层意外把流拷贝到磁盘。
 
+`CloudLibrary` 注册阿里、百度、夸克和 UC 的独立 `CloudProvider`，提供二维码申请/轮询、目录分页和原文件直链。网盘账号与 `SourceConfig` 中的书籍文件夹分离，目录/文件 ID 按不透明标识传递，不交给 SMB/WebDAV 路径规范化。文件夹浏览的路径与父栈只在异步加载成功后提交。
+
 ## 在线读取
 
 - SMB：保持 SMB2/3 文件句柄，按偏移读取；可恢复的传输中断重建一次连接，核对长度与修改时间，认证失败不盲目重试。
 - WebDAV：PROPFIND 列目录，HEAD / 单字节 Range 探测长度，后续逐次验证 206、Content-Range、响应长度与可用对象标识。单次最多 256 KiB；不接受整本 200 响应作为分段内容。
+- 网盘：`CloudRangeFile` 先请求单字节范围，再按需读取，每次最多 256 KiB。地址过期或 401/403 最多重新解析一次；校验长度、Content-Range、对象身份与 ETag。错误响应先取消网络请求，避免 HTTP 库为复用连接而排空整本响应。关闭书籍可取消正在读取的请求。
 - EPUB：`RemoteChannel` 将随机读取映射为 64 KiB 内存块，最多 16 块；`RemoteZipArchive` 惰性读取 ZIP 内容项，不遍历所有章节的本地头。中央目录限制 2 MiB / 16,000 项，每项正文解压限制 8 MiB。
 - TXT：`TextSegments` 按最多 48 KiB 读取，通过解码器保留完整字符边界；有限的内存检查点支持返回上一段。
 - PDF：`StorageManager.openProxyFileDescriptor` 把系统渲染器的 seek/read 交给远端文件。关闭书籍时释放文件描述符、网络句柄、章节缓存与位图。
@@ -27,6 +30,8 @@
 `files/library.json` 通过 `AtomicFile` 保存书库与书签。损坏记录禁止覆盖；在线条目只记录书籍身份、来源引用和逻辑位置。`files/books/` 仅包含明确保存的离线副本或用户主动打开的原创使用指南。
 
 来源地址和凭据统一经 Android Keystore AES-GCM 加密后写入私有偏好；关闭应用云备份和设备传输，避免无法迁移的密钥与密文脱节。网络日志不输出口令。
+
+`CloudAccountStore` 独立加密会话、令牌与 Cookie，保留 Cookie 的域、路径、过期、Secure、HostOnly 属性。Cookie 按实际请求 URL 匹配；跨源文件重定向不携带认证头。直链与二维码只保留在内存。账号使用提供商前缀，避免相同数字 ID 覆盖其他网盘账号。迟到的请求只允许更新原会话，不能恢复已退出的账号或覆盖新扫码会话。
 
 ## UI 与进度
 

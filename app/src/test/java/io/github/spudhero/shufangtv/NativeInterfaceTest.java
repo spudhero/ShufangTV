@@ -78,7 +78,10 @@ public class NativeInterfaceTest {
       assertNotNull(findText(decor, "本地 / 离线"));
       render(decor, "library-empty.png");
       decor.findViewWithTag("nav-sources").performClick();
-      assertNotNull(findText(decor, "添加 WebDAV / CD2"));
+      assertNotNull(decor.findViewWithTag("cloud-login-aliyun"));
+      assertNotNull(decor.findViewWithTag("cloud-login-baidu"));
+      assertNotNull(decor.findViewWithTag("cloud-login-quark"));
+      assertNotNull(decor.findViewWithTag("cloud-login-uc"));
       render(decor, "sources.png");
       decor.findViewWithTag("nav-bookmarks").performClick();
       assertNotNull(findText(decor, "留住让你停下来的文字"));

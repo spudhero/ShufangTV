@@ -1211,3 +1211,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
+
+
+ZXing core 3.5.3
+Copyright ZXing authors. Licensed under the Apache License, Version 2.0 (full text above).
+Upstream: https://github.com/zxing/zxing
+Used for local QR-code generation only.

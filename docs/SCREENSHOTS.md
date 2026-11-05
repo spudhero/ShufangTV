@@ -22,6 +22,14 @@
 
 ![书籍来源](screenshots/sources.png)
 
+## 扫码登录与选择文件夹
+
+以下使用合成的测试会话和不可用的示例二维码，展示原生交互，不包含用户账号或真实授权票据。
+
+![原生扫码弹窗](screenshots/cloud-login.png)
+
+![原生文件夹选择](screenshots/cloud-folder.png)
+
 ## 设置
 
 ![设置](screenshots/settings.png)

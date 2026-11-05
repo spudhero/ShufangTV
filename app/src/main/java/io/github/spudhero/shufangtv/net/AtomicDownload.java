@@ -9,10 +9,11 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-final class AtomicDownload {
+public final class AtomicDownload {
   private AtomicDownload() {}
 
-  static void copy(InputStream input, long total, File target, NetworkLibrary.Progress listener)
+  public static void copy(
+      InputStream input, long total, File target, NetworkLibrary.Progress listener)
       throws IOException {
     if (total > NetworkPaths.MAX_DOWNLOAD) throw NetworkPaths.invalid("书籍超过 128 MiB，当前版本暂不支持离线下载。");
     File parent = target.getAbsoluteFile().getParentFile();

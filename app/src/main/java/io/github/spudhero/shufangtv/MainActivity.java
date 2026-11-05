@@ -11,6 +11,7 @@ import android.provider.OpenableColumns;
 import android.text.*;
 import android.view.*;
 import android.widget.*;
+import io.github.spudhero.shufangtv.cloud.*;
 import io.github.spudhero.shufangtv.data.*;
 import io.github.spudhero.shufangtv.net.*;
 import io.github.spudhero.shufangtv.reader.*;
@@ -35,7 +36,14 @@ public final class MainActivity extends Activity {
   private boolean sortTitle;
   private volatile int operation;
   private volatile boolean destroyed;
-  private final NetworkLibrary network = new NetworkLibrary();
+  private NetworkLibrary network;
+  private CloudLibrary clouds;
+  private CloudLoginDialog cloudLogin;
+  private final Deque<CloudLocation> cloudParents = new ArrayDeque<>();
+  private final Deque<String> cloudBrowserParents = new ArrayDeque<>();
+  private final Map<String, String> cloudFolderNames = new HashMap<>();
+  private CloudAccount pickingAccount;
+  private String pickingFolder = "", pickingLabel = "", pickingCursor = "";
   private AlertDialog working;
 
   @Override
@@ -52,6 +60,8 @@ public final class MainActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
     library = new LibraryStore(this);
     sources = new SourceStore(this);
+    clouds = CloudLibrary.get(this);
+    network = new NetworkLibrary(clouds);
     preferences = getSharedPreferences("reading", MODE_PRIVATE);
     if (Build.VERSION.SDK_INT >= 33)
       getOnBackInvokedDispatcher()
@@ -94,7 +104,7 @@ public final class MainActivity extends Activity {
     }
     View spacer = new View(this);
     side.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1));
-    add(side, text(this, "开源 · 无账号 · 无广告", 10, MUTED), -1, 24);
+    add(side, text(this, "开源 · 无广告", 10, MUTED), -1, 24);
     root.addView(side, new LinearLayout.LayoutParams(dp(this, 146), -1));
     LinearLayout main = vertical(this);
     main.setPadding(dp(this, 28), dp(this, 30), dp(this, 32), dp(this, 14));
@@ -499,7 +509,55 @@ public final class MainActivity extends Activity {
   }
 
   private void showSources() {
-    shell("sources", "书籍来源", "在线读，或单独保存到本地。");
+    shell("sources", "书籍来源", "网盘扫码直连，选好文件夹就能读。离线保存由你决定。");
+    add(body, heading(this, "连接网盘", 18), -1, 32);
+    LinearLayout cloudButtons = horizontal(this);
+    for (CloudProvider provider : clouds.providers()) {
+      TextView login = action(cloudButtons, provider.label(), false, () -> loginCloud(provider));
+      login.setTag("cloud-login-" + provider.id());
+    }
+    add(body, cloudButtons, -1, 44);
+    gap(body, 12);
+    for (CloudAccount account : clouds.accounts()) {
+      LinearLayout accountCard =
+          sourcePanel(account.label, cloudLabel(account.providerId) + " · 已连接 · 可添加多个书籍文件夹");
+      LinearLayout accountActions = horizontal(this);
+      action(accountActions, "选择书籍文件夹", true, () -> chooseCloudFolder(account));
+      action(
+          accountActions,
+          "重新扫码",
+          false,
+          () -> {
+            try {
+              loginCloud(clouds.provider(account.providerId));
+            } catch (IOException e) {
+              message(e.getMessage());
+            }
+          });
+      action(
+          accountActions,
+          "退出账号",
+          false,
+          () ->
+              new AlertDialog.Builder(this)
+                  .setTitle("退出此网盘账号？")
+                  .setMessage("此账号的在线来源将暂不可用，已保存的本地书籍仍可离线阅读。")
+                  .setNegativeButton("取消", null)
+                  .setPositiveButton(
+                      "退出",
+                      (d, w) ->
+                          job(
+                              "正在退出网盘",
+                              () -> {
+                                clouds.logout(account.id);
+                                return true;
+                              },
+                              ok -> showSources()))
+                  .show());
+      add(accountCard, accountActions, -1, 42);
+      add(body, accountCard, -1, -2);
+      gap(body, 12);
+    }
     LinearLayout local = sourcePanel("电视本地 / USB", "直接打开原文件，不在电视上再复制一份。");
     TextView localButton = button(this, "打开文件", true, this::chooseLocal);
     add(local, localButton, 140, 40);
@@ -509,10 +567,13 @@ public final class MainActivity extends Activity {
       LinearLayout card =
           sourcePanel(
               source.name,
-              source.type == SourceConfig.Type.SMB ? "SMB 家庭共享" : "WebDAV / CD2 / 网盘服务");
+              source.type == SourceConfig.Type.CLOUD
+                  ? cloudLabel(source.providerId) + " · " + source.rootLabel
+                  : source.type == SourceConfig.Type.SMB ? "SMB 家庭共享" : "WebDAV 家庭书库");
       LinearLayout actions = horizontal(this);
       action(actions, "浏览书籍", false, () -> browse(source, ""));
-      action(actions, "编辑", false, () -> sourceForm(source, source.type));
+      if (source.type != SourceConfig.Type.CLOUD)
+        action(actions, "编辑", false, () -> sourceForm(source, source.type));
       action(
           actions,
           "移除连接",
@@ -536,9 +597,172 @@ public final class MainActivity extends Activity {
     }
     LinearLayout add = horizontal(this);
     action(add, "添加 SMB 家庭书库", false, () -> sourceForm(null, SourceConfig.Type.SMB));
-    action(add, "添加 WebDAV / CD2", false, () -> sourceForm(null, SourceConfig.Type.WEBDAV));
+    action(add, "添加 WebDAV 家庭书库", false, () -> sourceForm(null, SourceConfig.Type.WEBDAV));
     add(body, add, -1, 44);
-    focus(localButton);
+    focus(cloudButtons.getChildAt(0));
+  }
+
+  private void loginCloud(CloudProvider provider) {
+    if (cloudLogin != null) cloudLogin.close();
+    cloudLogin =
+        new CloudLoginDialog(
+            this,
+            provider,
+            io,
+            account ->
+                job(
+                    "正在保存网盘授权",
+                    () -> {
+                      clouds.save(account);
+                      return account;
+                    },
+                    this::chooseCloudFolder));
+    cloudLogin.show();
+  }
+
+  private String cloudLabel(String providerId) {
+    for (CloudProvider provider : clouds.providers())
+      if (provider.id().equals(providerId)) return provider.label();
+    return "网盘";
+  }
+
+  private static final class CloudLocation {
+    final String id, label, cursor;
+
+    CloudLocation(String id, String label, String cursor) {
+      this.id = id;
+      this.label = label;
+      this.cursor = cursor;
+    }
+  }
+
+  private void chooseCloudFolder(CloudAccount account) {
+    pickingAccount = account;
+    cloudParents.clear();
+    try {
+      CloudProvider provider = clouds.provider(account.providerId);
+      loadCloudFolder(provider.rootId(account), provider.label() + " · 根目录", "");
+    } catch (IOException e) {
+      message(e.getMessage());
+    }
+  }
+
+  private void loadCloudFolder(String folderId, String label, String cursor) {
+    loadCloudFolder(folderId, label, cursor, new ArrayDeque<>(cloudParents));
+  }
+
+  private void loadCloudFolder(
+      String folderId, String label, String cursor, Deque<CloudLocation> nextParents) {
+    CloudAccount account = pickingAccount;
+    if (account == null) return;
+    job(
+        "正在加载网盘文件夹",
+        () -> clouds.page(account, folderId, cursor, true),
+        page -> {
+          cloudParents.clear();
+          cloudParents.addAll(nextParents);
+          pickingFolder = folderId;
+          pickingLabel = label;
+          pickingCursor = cursor;
+          shell("cloud-folder", "选择书籍文件夹", account.label + " · " + label);
+          LinearLayout tools = horizontal(this);
+          TextView select = action(tools, "将此文件夹设为书籍来源", true, this::saveCloudFolder);
+          select.setTag("cloud-folder-save");
+          if (!cloudParents.isEmpty())
+            action(
+                tools,
+                "上一级",
+                false,
+                () -> {
+                  Deque<CloudLocation> parents = new ArrayDeque<>(cloudParents);
+                  CloudLocation parent = parents.pop();
+                  loadCloudFolder(parent.id, parent.label, parent.cursor, parents);
+                });
+          action(tools, "取消", false, this::showSources);
+          add(body, tools, -1, 44);
+          gap(body, 12);
+          add(body, text(this, "只保存文件夹位置。打开书籍时按需读取，不会自动下载整个文件夹。", 13, MUTED), -1, 36);
+          gap(body, 10);
+          int folders = 0;
+          for (CloudProvider.Entry entry : page.entries) {
+            if (!entry.directory) continue;
+            folders++;
+            TextView item =
+                button(
+                    this,
+                    "▤  " + entry.name + "    〉",
+                    false,
+                    () -> {
+                      Deque<CloudLocation> parents = new ArrayDeque<>(cloudParents);
+                      parents.push(new CloudLocation(folderId, label, cursor));
+                      loadCloudFolder(entry.id, entry.name, "", parents);
+                    });
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setSingleLine(true);
+            item.setEllipsize(TextUtils.TruncateAt.END);
+            item.setTag("cloud-folder-" + entry.id);
+            add(body, item, -1, 44);
+            gap(body, 8);
+          }
+          if (folders == 0) add(body, text(this, "这里没有子文件夹，可以直接选择当前文件夹。", 14, MUTED), -1, 48);
+          if (page.nextPageToken != null && !page.nextPageToken.isEmpty()) {
+            TextView next =
+                button(
+                    this,
+                    "下一页文件夹  〉",
+                    false,
+                    () -> loadCloudFolder(folderId, label, page.nextPageToken));
+            add(body, next, -1, 44);
+          }
+          if (!cursor.isEmpty())
+            add(
+                body,
+                button(this, "返回第一页", false, () -> loadCloudFolder(folderId, label, "")),
+                -1,
+                44);
+          focus(select);
+        });
+  }
+
+  private void saveCloudFolder() {
+    CloudAccount account = pickingAccount;
+    if (account == null) return;
+    if (pickingFolder.startsWith("@")) {
+      message("请先进入资源库或备份盘，再选择书籍文件夹");
+      return;
+    }
+    for (SourceConfig existing : sources.sources)
+      if (existing.type == SourceConfig.Type.CLOUD
+          && existing.accountId.equals(account.id)
+          && existing.root.equals(pickingFolder)) {
+        message("这个文件夹已经添加到书籍来源");
+        showSources();
+        return;
+      }
+    SourceConfig source = new SourceConfig();
+    source.id = UUID.randomUUID().toString();
+    source.type = SourceConfig.Type.CLOUD;
+    source.providerId = account.providerId;
+    source.accountId = account.id;
+    source.root = pickingFolder;
+    source.rootLabel = pickingLabel;
+    source.name = account.label + " · " + pickingLabel;
+    job(
+        "正在保存书籍来源",
+        () -> {
+          sources.sources.add(source);
+          try {
+            sources.save();
+          } catch (IOException e) {
+            sources.sources.remove(source);
+            throw e;
+          }
+          return source;
+        },
+        saved -> {
+          showSources();
+          message("已添加书籍来源，可以浏览并在线阅读");
+        });
   }
 
   private LinearLayout sourcePanel(String title, String detail) {
@@ -617,7 +841,7 @@ public final class MainActivity extends Activity {
             : null;
     AlertDialog dialog =
         new AlertDialog.Builder(this)
-            .setTitle(type == SourceConfig.Type.SMB ? "连接 SMB 家庭书库" : "连接 WebDAV / CD2")
+            .setTitle(type == SourceConfig.Type.SMB ? "连接 SMB 家庭书库" : "连接 WebDAV 家庭书库")
             .setView(scroll)
             .setPositiveButton("保存并浏览", null)
             .setNegativeButton("取消", null)
@@ -679,17 +903,60 @@ public final class MainActivity extends Activity {
   }
 
   private void browse(SourceConfig source, String path) {
-    browsing = source;
-    sourcePath = path;
-    job("正在读取书库目录", () -> network.list(source, path), entries -> showRemote(source, path, entries));
+    browse(
+        source,
+        path,
+        () -> {
+          if (source.type == SourceConfig.Type.CLOUD && path.isEmpty()) {
+            cloudBrowserParents.clear();
+            cloudFolderNames.clear();
+          }
+        });
+  }
+
+  private void browse(SourceConfig source, String path, Runnable commitNavigation) {
+    job(
+        "正在读取书库目录",
+        () -> network.list(source, path),
+        entries -> {
+          browsing = source;
+          sourcePath = path;
+          commitNavigation.run();
+          showRemote(source, path, entries);
+        });
+  }
+
+  private void cloudBrowseUp(SourceConfig source) {
+    Deque<String> parents = new ArrayDeque<>(cloudBrowserParents);
+    String target = parents.isEmpty() ? "" : parents.pop();
+    browse(
+        source,
+        target,
+        () -> {
+          cloudBrowserParents.clear();
+          cloudBrowserParents.addAll(parents);
+        });
   }
 
   private void showRemote(SourceConfig source, String path, List<RemoteEntry> entries) {
-    shell("browser", source.name, path.isEmpty() ? "书库根目录" : path);
+    boolean cloud = source.type == SourceConfig.Type.CLOUD;
+    shell(
+        "browser",
+        source.name,
+        path.isEmpty() ? "书库根目录" : cloud ? cloudFolderNames.getOrDefault(path, "书籍文件夹") : path);
     LinearLayout tools = horizontal(this);
     TextView refresh = action(tools, "刷新", false, () -> browse(source, path));
-    if (!path.isEmpty()) action(tools, "上一级", false, () -> browse(source, parent(path)));
-    action(tools, "连接设置", false, () -> sourceForm(source, source.type));
+    if (!path.isEmpty())
+      action(
+          tools,
+          "上一级",
+          false,
+          () -> {
+            if (cloud) cloudBrowseUp(source);
+            else browse(source, parent(path));
+          });
+    if (cloud) action(tools, "书籍来源", false, this::showSources);
+    else action(tools, "连接设置", false, () -> sourceForm(source, source.type));
     add(body, tools, -1, 44);
     gap(body, 10);
     List<RemoteEntry> sorted = new ArrayList<>(entries);
@@ -706,8 +973,20 @@ public final class MainActivity extends Activity {
                   + (entry.directory ? "    〉" : "    " + bytes(entry.size)),
               false,
               () -> {
-                if (entry.directory) browse(source, entry.path);
-                else remoteActions(source, entry);
+                if (entry.directory) {
+                  if (cloud) {
+                    Deque<String> parents = new ArrayDeque<>(cloudBrowserParents);
+                    parents.push(path);
+                    browse(
+                        source,
+                        entry.path,
+                        () -> {
+                          cloudBrowserParents.clear();
+                          cloudBrowserParents.addAll(parents);
+                          cloudFolderNames.put(entry.path, entry.name);
+                        });
+                  } else browse(source, entry.path);
+                } else remoteActions(source, entry);
               });
       item.setGravity(Gravity.CENTER_VERTICAL);
       item.setSingleLine(true);
@@ -1040,11 +1319,11 @@ public final class MainActivity extends Activity {
         false,
         () ->
             message(
-                "书房 TV 0.1.0-alpha.1（测试版）\n"
+                "书房 TV 0.2.0-alpha.1（测试版）\n"
                     + "独立编写的 Android TV 开源阅读器\n"
                     + "Apache-2.0\n"
                     + "github.com/spudhero/ShufangTV\n"
-                    + "支持 EPUB 文本、TXT、PDF；网盘通过 SMB 或 WebDAV 服务访问。"));
+                    + "支持 EPUB 文本、TXT、PDF；阿里、百度、夸克和 UC 网盘扫码直连。"));
     add(body, actions, -1, 44);
     focus(first);
   }
@@ -1065,7 +1344,7 @@ public final class MainActivity extends Activity {
             + "一卷在手，片刻清宁。\n\n"
             + "书房 TV 是为客厅电视和遥控器编写的中文阅读器。你可以连接家庭书库在线读，也可以明确选择保存到本地后离线读。\n\n"
             + "在线阅读\n\n"
-            + "在书籍来源中添加 SMB 或 WebDAV 连接，浏览书库，选中一本 EPUB、TXT 或"
+            + "在书籍来源中选择网盘，用手机扫码确认登录，再选择书籍文件夹。也可以添加 SMB 或 WebDAV 家庭书库。选中一本 EPUB、TXT 或"
             + " PDF，再选择在线打开。在线模式按需读取文件，临时数据保存在内存，不下载整本书。服务器必须支持文件随机读取。\n\n"
             + "离线阅读\n\n"
             + "在同一个书籍菜单中选择保存到本地，确认大小与空间后再下载。电视本地和 U 盘中的文件可通过系统文件选择器直接读取，不会额外复制。\n\n"
@@ -1075,7 +1354,7 @@ public final class MainActivity extends Activity {
             + "书房按章节和文字位置保存进度，改变字号、行距后继续读。在线与离线副本共享同一个阅读位置。\n\n"
             + "开源与边界\n\n"
             + "所有应用源码在 github.com/spudhero/ShufangTV。首版不支持带 DRM 的电子书和纯图片 EPUB；PDF"
-            + " 以页面显示。网盘通过你配置的标准协议服务访问。\n";
+            + " 以页面显示。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
     job(
         "正在打开指南",
         () -> {
@@ -1192,8 +1471,19 @@ public final class MainActivity extends Activity {
       return;
     }
     if (route.equals("browser") && browsing != null) {
-      if (!sourcePath.isEmpty()) browse(browsing, parent(sourcePath));
-      else showSources();
+      if (!sourcePath.isEmpty()) {
+        if (browsing.type == SourceConfig.Type.CLOUD) cloudBrowseUp(browsing);
+        else browse(browsing, parent(sourcePath));
+      } else showSources();
+      return;
+    }
+    if (route.equals("cloud-folder") && pickingAccount != null) {
+      if (cloudParents.isEmpty()) showSources();
+      else {
+        Deque<CloudLocation> parents = new ArrayDeque<>(cloudParents);
+        CloudLocation previous = parents.pop();
+        loadCloudFolder(previous.id, previous.label, previous.cursor, parents);
+      }
       return;
     }
     if (!route.equals("home")) {
@@ -1226,6 +1516,7 @@ public final class MainActivity extends Activity {
     destroyed = true;
     operation++;
     if (reader != null) reader.dispose();
+    if (cloudLogin != null) cloudLogin.close();
     io.shutdown();
     super.onDestroy();
   }

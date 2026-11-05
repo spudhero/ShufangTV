@@ -64,7 +64,7 @@ REA 的类引用结果把 `HttpRangeRandomAccessRead` 关联到 `StreamingPdfDoc
 
 ### 来源与随机访问
 
-来源适配器提供长度、对象身份、按偏移读取和关闭能力，目录浏览不应触发书籍内容下载。SMB 使用带偏移的文件读取；HTTP/WebDAV 使用 Range。CloudDrive2 的连接优先采用用户配置的标准 WebDAV/HTTP 服务，不依赖其私有云厂商登录或 native 内部协议。
+来源适配器提供长度、对象身份、按偏移读取和关闭能力，目录浏览不应触发书籍内容下载。SMB 使用带偏移的文件读取；网盘原文件直链与 WebDAV 使用 Range。根据用户后续明确要求，四家网盘由书房 TV 自行扫码、列目录和取得直链，不使用 CD2 服务或代理；见 [网盘参考边界](CLOUD-REFERENCE.md)。
 
 HTTP 每次块读取都校验 206 状态、起止位置、总长度与实际返回长度。服务可能忽略 Range，不能把 200 响应正文当作某个非零偏移的数据块；对象校验信息变化时必须清理旧缓存并重新打开。[RFC 9110 的范围请求与 Content-Range 定义](https://www.rfc-editor.org/rfc/rfc9110.html#name-range)是协议依据。
 

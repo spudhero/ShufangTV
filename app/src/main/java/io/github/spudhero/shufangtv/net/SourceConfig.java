@@ -6,7 +6,8 @@ package io.github.spudhero.shufangtv.net;
 public final class SourceConfig {
   public enum Type {
     SMB,
-    WEBDAV
+    WEBDAV,
+    CLOUD
   }
 
   public String id = "";
@@ -17,6 +18,9 @@ public final class SourceConfig {
   public String username = "";
   public String password = "";
   public String domain = "";
+  public String providerId = "";
+  public String accountId = "";
+  public String rootLabel = "";
   public int port;
   public boolean https;
   public Type type = Type.SMB;
