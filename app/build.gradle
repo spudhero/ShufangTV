@@ -1,0 +1,49 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'io.github.spudhero.shufangtv'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+    defaultConfig {
+        applicationId 'io.github.spudhero.shufangtv'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+        testInstrumentationRunner 'android.test.InstrumentationTestRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    lint { abortOnError true; disable 'GradleDependency', 'NewerVersionAvailable', 'OldTargetApi' }
+    testOptions { unitTests.includeAndroidResources = true }
+    packaging { resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/INDEX.LIST', 'META-INF/versions/**'] }
+}
+
+dependencies {
+    implementation project(':core')
+    implementation 'com.hierynomus:smbj:0.14.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.apache.commons:commons-compress:1.27.1'
+    implementation 'org.slf4j:slf4j-nop:2.0.16'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16'
+}
+
+tasks.withType(Test).configureEach {
+    // Keep Robolectric's downloaded Android runtime and lock inside disposable build output.
+    def testHome = layout.buildDirectory.dir('test-home').get().asFile
+    systemProperty 'user.home', testHome.absolutePath
+    systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+    System.properties.findAll { key, value -> key.toString().startsWith('robolectric.') }.each { key, value ->
+        systemProperty key.toString(), value
+    }
+    doFirst { testHome.mkdirs() }
+}

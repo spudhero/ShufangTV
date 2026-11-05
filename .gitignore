@@ -1,0 +1,17 @@
+.gradle/
+.build-cache/
+build/
+**/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+*.apk
+*.aab
+*.jks
+*.keystore
+*.hprof
+private-analysis/
+local-test-data/
+artifacts/
+.codebase-memory/
