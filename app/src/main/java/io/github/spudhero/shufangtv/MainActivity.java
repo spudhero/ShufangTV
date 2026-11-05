@@ -1335,6 +1335,9 @@ public final class MainActivity extends Activity {
     edit.setText(value == null ? "" : value);
     edit.setHint(hint);
     edit.setTextSize(14);
+    edit.setTextColor(TEXT);
+    edit.setHintTextColor(MUTED);
+    edit.setBackgroundTintList(android.content.res.ColorStateList.valueOf(ACCENT));
     edit.setSingleLine(true);
     edit.setInputType(
         password
@@ -1342,15 +1345,15 @@ public final class MainActivity extends Activity {
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             : android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-    add(form, edit, -1, 42);
+    add(form, edit, -1, 44);
     gap(form, 8);
     return edit;
   }
 
   private void sourceForm(SourceConfig original, SourceConfig.Type type) {
     LinearLayout form = vertical(this);
-    form.setPadding(dp(this, 24), dp(this, 8), dp(this, 24), dp(this, 16));
     ScrollView scroll = new ScrollView(this);
+    scroll.setSmoothScrollingEnabled(false);
     scroll.addView(form);
     EditText name =
         formField(
@@ -1394,66 +1397,64 @@ public final class MainActivity extends Activity {
             ? formField(form, "域（可选）", original == null ? "" : original.domain, "通常留空", false)
             : null;
     AlertDialog dialog =
-        new AlertDialog.Builder(this)
+        new ReadingDialog(this)
+            .width(620)
             .setTitle(type == SourceConfig.Type.SMB ? "连接 SMB 家庭书库" : "连接 WebDAV 家庭书库")
             .setView(scroll)
             .setPositiveButton("保存并浏览", null)
             .setNegativeButton("取消", null)
             .create();
     EditText finalPort = port, finalShare = share;
-    dialog.setOnShowListener(
-        d -> {
-          dialog
-              .getButton(AlertDialog.BUTTON_POSITIVE)
-              .setOnClickListener(
-                  v -> {
-                    if (host.getText().toString().trim().isEmpty()) {
-                      host.setError("请输入服务器地址");
-                      host.requestFocus();
-                      return;
-                    }
-                    if (finalShare != null && finalShare.getText().toString().trim().isEmpty()) {
-                      finalShare.setError("请输入共享名称");
-                      finalShare.requestFocus();
-                      return;
-                    }
-                    int portNumber = 0;
-                    if (finalPort != null)
-                      try {
-                        portNumber = Integer.parseInt(finalPort.getText().toString());
-                        if (portNumber < 1 || portNumber > 65535) throw new NumberFormatException();
-                      } catch (NumberFormatException e) {
-                        finalPort.setError("端口应在 1–65535 之间");
-                        return;
-                      }
-                    SourceConfig config = new SourceConfig();
-                    config.id = original == null ? UUID.randomUUID().toString() : original.id;
-                    config.name = name.getText().toString().trim();
-                    if (config.name.isEmpty())
-                      config.name = type == SourceConfig.Type.SMB ? "家庭书库" : "WebDAV 书库";
-                    config.type = type;
-                    config.host = host.getText().toString().trim();
-                    config.port = portNumber;
-                    config.share = finalShare == null ? "" : finalShare.getText().toString().trim();
-                    config.root = rootPath.getText().toString().trim();
-                    config.username = username.getText().toString();
-                    config.password = password.getText().toString();
-                    config.domain = domain == null ? "" : domain.getText().toString();
-                    config.https = config.host.startsWith("https://");
-                    if (original != null) sources.sources.remove(original);
-                    sources.sources.add(config);
-                    try {
-                      sources.save();
-                      dialog.dismiss();
-                      browse(config, "");
-                    } catch (IOException e) {
-                      sources.sources.remove(config);
-                      if (original != null) sources.sources.add(original);
-                      message(e.getMessage());
-                    }
-                  });
-        });
     dialog.show();
+    dialog
+        .getButton(AlertDialog.BUTTON_POSITIVE)
+        .setOnClickListener(
+            v -> {
+              if (host.getText().toString().trim().isEmpty()) {
+                host.setError("请输入服务器地址");
+                host.requestFocus();
+                return;
+              }
+              if (finalShare != null && finalShare.getText().toString().trim().isEmpty()) {
+                finalShare.setError("请输入共享名称");
+                finalShare.requestFocus();
+                return;
+              }
+              int portNumber = 0;
+              if (finalPort != null)
+                try {
+                  portNumber = Integer.parseInt(finalPort.getText().toString());
+                  if (portNumber < 1 || portNumber > 65535) throw new NumberFormatException();
+                } catch (NumberFormatException e) {
+                  finalPort.setError("端口应在 1–65535 之间");
+                  return;
+                }
+              SourceConfig config = new SourceConfig();
+              config.id = original == null ? UUID.randomUUID().toString() : original.id;
+              config.name = name.getText().toString().trim();
+              if (config.name.isEmpty())
+                config.name = type == SourceConfig.Type.SMB ? "家庭书库" : "WebDAV 书库";
+              config.type = type;
+              config.host = host.getText().toString().trim();
+              config.port = portNumber;
+              config.share = finalShare == null ? "" : finalShare.getText().toString().trim();
+              config.root = rootPath.getText().toString().trim();
+              config.username = username.getText().toString();
+              config.password = password.getText().toString();
+              config.domain = domain == null ? "" : domain.getText().toString();
+              config.https = config.host.startsWith("https://");
+              if (original != null) sources.sources.remove(original);
+              sources.sources.add(config);
+              try {
+                sources.save();
+                dialog.dismiss();
+                browse(config, "");
+              } catch (IOException e) {
+                sources.sources.remove(config);
+                if (original != null) sources.sources.add(original);
+                message(e.getMessage());
+              }
+            });
   }
 
   private void browse(SourceConfig source, String path) {
@@ -1659,7 +1660,8 @@ public final class MainActivity extends Activity {
       message("本地空间不足。可以继续在线阅读，或先清理离线副本。");
       return;
     }
-    new AlertDialog.Builder(this)
+    new ReadingDialog(this)
+        .width(480)
         .setTitle("保存到本地？")
         .setMessage(
             b.title + "\n书籍大小：" + bytes(b.size) + "\n剩余空间：" + bytes(free) + "\n完整保存后可在离线书库打开。")
@@ -1691,7 +1693,8 @@ public final class MainActivity extends Activity {
                   saved -> {
                     b.offlineFile = b.id + "." + b.format;
                     save();
-                    new AlertDialog.Builder(this)
+                    new ReadingDialog(this)
+                        .width(480)
                         .setTitle("已保存到本地")
                         .setMessage(b.title)
                         .setPositiveButton("离线打开", (dlg, which) -> openBook(b, false))
@@ -1805,7 +1808,8 @@ public final class MainActivity extends Activity {
 
   private void removeBook(BookRecord b) {
     String detail = b.offlineFile.isEmpty() ? "只移除书库记录，原文件保持在原位置。" : "将移除本应用保存的离线副本，远端原文件保持在书库中。";
-    new AlertDialog.Builder(this)
+    new ReadingDialog(this)
+        .width(480)
         .setTitle("从书库移除？")
         .setMessage(b.title + "\n" + detail)
         .setPositiveButton(
@@ -1827,7 +1831,8 @@ public final class MainActivity extends Activity {
   }
 
   private void removeOffline(BookRecord b) {
-    new AlertDialog.Builder(this)
+    new ReadingDialog(this)
+        .width(480)
         .setTitle("删除离线副本？")
         .setMessage(b.title + "\n在线入口、阅读进度和书签会保留。")
         .setPositiveButton(
@@ -2060,7 +2065,8 @@ public final class MainActivity extends Activity {
     view.setPadding(dp(this, 28), dp(this, 20), dp(this, 28), dp(this, 20));
     add(view, bar, -1, 40);
     AlertDialog dialog =
-        new AlertDialog.Builder(this)
+        new ReadingDialog(this)
+            .width(480)
             .setTitle(title)
             .setView(view)
             .setNegativeButton("取消", null)

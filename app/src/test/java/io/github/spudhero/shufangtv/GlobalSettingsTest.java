@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -82,6 +83,50 @@ public class GlobalSettingsTest {
       assertFullyVisible(decor.findViewWithTag("settings-help"));
       assertFullyVisible(decor.findViewWithTag("settings-about"));
     }
+  }
+
+  @Test
+  public void longSourceFormUsesDarkBoundedWindowWithoutLosingValidation() throws Exception {
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      View decor = activity.getWindow().getDecorView();
+      findText(decor, "添加家庭书库").performClick();
+      ShadowLooper.idleMainLooper();
+      AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+      assertTrue(dialog.getWindow().getDecorView().getBackground() instanceof GradientDrawable);
+      int maxHeight = Math.round(460 * activity.getResources().getDisplayMetrics().density);
+      assertTrue(dialog.getWindow().getAttributes().height > 0);
+      assertTrue(dialog.getWindow().getAttributes().height <= maxHeight);
+      dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+      assertTrue("Invalid source must keep its form open", dialog.isShowing());
+      assertNotNull(findError(dialog.getWindow().getDecorView()));
+    }
+  }
+
+  private static TextView findText(View view, String text) {
+    if (view instanceof TextView && ((TextView) view).getText().toString().equals(text))
+      return (TextView) view;
+    if (view instanceof ViewGroup) {
+      ViewGroup group = (ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        TextView found = findText(group.getChildAt(i), text);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  private static TextView findError(View view) {
+    if (view instanceof TextView && ((TextView) view).getError() != null) return (TextView) view;
+    if (view instanceof ViewGroup) {
+      ViewGroup group = (ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        TextView found = findError(group.getChildAt(i));
+        if (found != null) return found;
+      }
+    }
+    return null;
   }
 
   private static void assertFullyVisible(View view) {

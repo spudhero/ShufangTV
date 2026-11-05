@@ -191,6 +191,15 @@ public class ReadingDialog extends AlertDialog.Builder {
       list.setSelection(checked >= 0 ? checked : 0);
       list.requestFocus();
     }
+    if (height == ViewGroup.LayoutParams.WRAP_CONTENT) {
+      // Custom panels also need a bounded window on device themes with tall content.
+      int maxHeight = dp(activity, Math.max(160, heightDp - 80));
+      View decor = window.getDecorView();
+      decor.measure(
+          View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+          View.MeasureSpec.makeMeasureSpec(maxHeight, View.MeasureSpec.AT_MOST));
+      height = Math.min(maxHeight, decor.getMeasuredHeight());
+    }
     window.setLayout(width, height);
     TextView message = dialog.findViewById(android.R.id.message);
     if (message != null) {

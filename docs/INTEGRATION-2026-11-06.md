@@ -16,12 +16,14 @@
 
 运行仓库要求的 `:core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`；JDK 17、Gradle 8.13、SDK/Build Tools 36。离线 Robolectric 运行时及来源校验值见 [历史验证](VALIDATION.md)。
 
-- core 38、app 130，合计 **168 项**；失败、错误、跳过均为 0。
+- core 38、app 131，合计 **169 项**；失败、错误、跳过均为 0。
 - lint 0 错误、20 个警告，涉及程序化 View、字符串、绘制分配与存储 API 提示；未添加基线掩盖问题。
-- 两项新增设置检查覆盖全局/本书隔离、40 号边界、焦点恢复、动态版本以及 640×360dp 下选项与底部操作的完整可见性。
-- 安装包 `artifacts/ShufangTV-0.3.0-alpha.1-debug.apk`：6,955,003 字节；SHA-256 `12edfcaa9e64a12212a1d61d9f0245e559ab1dc60b5ca91ede7a7cd993e4dc52`。
+- 三项新增设置/表单检查覆盖全局/本书隔离、40 号边界、焦点恢复、动态版本以及 640×360dp 下选项与底部操作的完整可见性。
+- 安装包 `artifacts/ShufangTV-0.3.0-alpha.1-sony-debug.apk`：7,008,251 字节；SHA-256 `e6012f4367c8071dd4002f0fd418734e5ad89b32aafd11fe1759b7f0fe6bd47f`。
 - 原项目本地测试证书 SHA-256 `9aeb612cabfb2d39bd0d7b40f212a562c0aee3440a9bd4b84e376f335ab6e0e0`，APK v2/v3 签名验证成功。保留旧版本 APK、标签和校验记录；密钥及安装包不进入源码 Git。
 
 ## Sony 实机
 
 已连接 BRAVIA 4K UR2，Android 10/API 29，1920×1080，320dpi；初始未安装书房 TV。没有发现平台 TTS 引擎。安装和逐项操作结果将在本节补充，不把 JVM 检查计为实机通过。
+
+首轮 Sony 截图发现长排版面板触及上下边缘；已将自定义内容与原生列表都限制在高度安全区，并统一 SMB/WebDAV 表单、下载、进度和删除确认弹窗。表单显示后再绑定校验，避免覆盖通用样式回调。重新运行全部 169 项检查成功，安装包重新签名。
