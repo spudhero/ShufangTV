@@ -2,6 +2,7 @@ package io.github.spudhero.shufangtv.data;
 
 import android.content.Context;
 import android.util.AtomicFile;
+import io.github.spudhero.shufangtv.core.TextNavigator;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -45,14 +46,16 @@ public final class LibraryStore {
       JSONArray a = new JSONArray(), m = new JSONArray();
       for (BookRecord b : books) a.put(b.json());
       for (Mark mark : marks) m.put(mark.json());
-      output = metadata.startWrite();
-      output.write(
+      byte[] bytes =
           new JSONObject()
               .put("version", 1)
               .put("books", a)
               .put("marks", m)
               .toString()
-              .getBytes(StandardCharsets.UTF_8));
+              .getBytes(StandardCharsets.UTF_8);
+      if (bytes.length > 4 * 1024 * 1024) throw new IOException("书库记录已达容量上限，请先导出并清理部分笔记");
+      output = metadata.startWrite();
+      output.write(bytes);
       metadata.finishWrite(output);
     } catch (Exception e) {
       if (output != null) metadata.failWrite(output);
@@ -80,6 +83,25 @@ public final class LibraryStore {
     return list;
   }
 
+  public List<BookRecord> shelf(boolean byTitle) {
+    List<BookRecord> list = new ArrayList<>(books);
+    list.sort(
+        (a, b) -> {
+          int pinned = Boolean.compare(b.pinned, a.pinned);
+          if (pinned != 0) return pinned;
+          int order =
+              byTitle ? a.title.compareToIgnoreCase(b.title) : Long.compare(b.lastRead, a.lastRead);
+          return order != 0 ? order : a.id.compareTo(b.id);
+        });
+    return list;
+  }
+
+  public List<String> groups() {
+    java.util.Set<String> names = new java.util.TreeSet<>();
+    for (BookRecord b : books) if (!b.group.isEmpty()) names.add(b.group);
+    return new ArrayList<>(names);
+  }
+
   public void bookmark(BookRecord b, String excerpt) throws IOException {
     for (Mark m : marks)
       if (m.bookId.equals(b.id)
@@ -96,7 +118,79 @@ public final class LibraryStore {
     m.excerpt = excerpt;
     m.mode = b.lastMode;
     marks.add(m);
-    save();
+    try {
+      save();
+    } catch (IOException e) {
+      marks.remove(m);
+      throw e;
+    }
+  }
+
+  public Mark annotate(BookRecord b, String text, TextNavigator.Range range, String note)
+      throws IOException {
+    if (range.start < 0
+        || range.end <= range.start
+        || range.end > text.length()
+        || range.end - range.start > 4000
+        || TextNavigator.boundary(text, range.start) != range.start
+        || TextNavigator.boundary(text, range.end) != range.end) throw new IOException("请选择有效正文段落");
+    for (Mark mark : marks)
+      if (mark.isNote()
+          && mark.bookId.equals(b.id)
+          && mark.chapter == b.chapter
+          && mark.txtByte == b.txtByte
+          && mark.offset == range.start
+          && mark.end == range.end
+          && mark.matches(text)) {
+        updateNote(mark, note);
+        return mark;
+      }
+    Mark mark = new Mark();
+    mark.bookId = b.id;
+    mark.chapter = b.chapter;
+    mark.txtByte = b.txtByte;
+    mark.offset = range.start;
+    mark.end = range.end;
+    mark.excerpt = text.substring(range.start, range.end);
+    mark.note = boundedNote(note);
+    mark.createdAt = System.currentTimeMillis();
+    mark.mode = b.lastMode;
+    marks.add(mark);
+    try {
+      save();
+    } catch (IOException e) {
+      marks.remove(mark);
+      throw e;
+    }
+    return mark;
+  }
+
+  private static String boundedNote(String note) {
+    String value = note == null ? "" : note.trim();
+    return value.substring(0, TextNavigator.boundary(value, Math.min(value.length(), 2000)));
+  }
+
+  public void updateNote(Mark mark, String note) throws IOException {
+    String before = mark.note;
+    mark.note = boundedNote(note);
+    try {
+      save();
+    } catch (IOException e) {
+      mark.note = before;
+      throw e;
+    }
+  }
+
+  public void removeMark(Mark mark) throws IOException {
+    int at = marks.indexOf(mark);
+    if (at < 0) return;
+    marks.remove(at);
+    try {
+      save();
+    } catch (IOException e) {
+      marks.add(at, mark);
+      throw e;
+    }
   }
 
   public static byte[] readBounded(InputStream input, int limit) throws IOException {
@@ -114,6 +208,23 @@ public final class LibraryStore {
     public String id = UUID.randomUUID().toString(), bookId, excerpt = "", mode = "offline";
     public int chapter, offset, pdfPage;
     public long txtByte;
+    public int end;
+    public long createdAt;
+    public String note = "";
+
+    public boolean isNote() {
+      return end > offset;
+    }
+
+    public boolean matches(String text) {
+      return isNote()
+          && offset >= 0
+          && end <= text.length()
+          && end - offset == excerpt.length()
+          && TextNavigator.boundary(text, offset) == offset
+          && TextNavigator.boundary(text, end) == end
+          && text.regionMatches(offset, excerpt, 0, excerpt.length());
+    }
 
     JSONObject json() throws Exception {
       return new JSONObject()
@@ -124,7 +235,10 @@ public final class LibraryStore {
           .put("chapter", chapter)
           .put("offset", offset)
           .put("pdfPage", pdfPage)
-          .put("txtByte", txtByte);
+          .put("txtByte", txtByte)
+          .put("end", end)
+          .put("note", note)
+          .put("createdAt", createdAt);
     }
 
     static Mark from(JSONObject j) {
@@ -137,6 +251,9 @@ public final class LibraryStore {
       m.offset = Math.max(0, j.optInt("offset"));
       m.pdfPage = Math.max(0, j.optInt("pdfPage"));
       m.txtByte = Math.max(0, j.optLong("txtByte"));
+      m.end = Math.max(0, j.optInt("end"));
+      m.note = boundedNote(j.optString("note"));
+      m.createdAt = Math.max(0, j.optLong("createdAt"));
       return m;
     }
   }
