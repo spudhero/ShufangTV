@@ -95,6 +95,10 @@ public class NativeCloudFlowTest {
       assertEquals("drive:nested", restored.sources.get(0).root);
       assertEquals("aliyun:fixture", restored.sources.get(0).accountId);
       assertEquals(0, provider.resolves.get());
+      assertNotNull(
+          "saving a folder must show its books immediately",
+          decor.findViewWithTag("remote-file:pdf"));
+      decor.findViewWithTag("nav-sources").performClick();
       render(decor, "cloud-sources.png", 1920, 1080);
       decor.findViewWithTag("source-browse-" + restored.sources.get(0).id).performClick();
       settle(activity);
@@ -116,6 +120,64 @@ public class NativeCloudFlowTest {
       assertTrue(
           "reloading the directory must restore the selected book",
           decor.findViewWithTag("remote-file:sample").hasFocus());
+    }
+  }
+
+  @Test
+  @Config(qualifiers = "zh-rCN-w640dp-h360dp-land-television-xhdpi")
+  public void bookOnlyFolderShowsReadableFilesAndReusesItsSourceWithoutFetchingContent()
+      throws Exception {
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      FakeProvider provider = new FakeProvider();
+      provider.booksOnly = true;
+      CloudLibrary clouds =
+          new CloudLibrary(new MemoryAccounts(), Collections.singletonList(provider));
+      clouds.save(provider.account);
+      SourceStore sources = new SourceStore(activity, new SecretKeySpec(new byte[32], "AES"));
+      ReflectionHelpers.setField(activity, "clouds", clouds);
+      ReflectionHelpers.setField(activity, "network", new NetworkLibrary(clouds));
+      ReflectionHelpers.setField(activity, "sources", sources);
+      ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+      decor.findViewWithTag("nav-sources").performClick();
+      decor.findViewWithTag("cloud-folder-add").performClick();
+      settle(activity);
+      assertNotNull(decor.findViewWithTag("cloud-book-file:sample"));
+      assertNotNull(decor.findViewWithTag("cloud-book-file:epub"));
+      View pdf = decor.findViewWithTag("cloud-book-file:pdf");
+      assertNotNull("a folder containing only books must not look empty", pdf);
+      assertNull(decor.findViewWithTag("cloud-book-file:audio"));
+      assertTrue(decor.findViewWithTag("cloud-book-file:epub").hasFocus());
+      render(decor, "cloud-book-only-720p.png", 1280, 720);
+      View save = decor.findViewWithTag("cloud-folder-save");
+      Rect bounds = new Rect();
+      assertTrue(save.getGlobalVisibleRect(bounds));
+      assertEquals(save.getHeight(), bounds.height());
+      assertTrue(bounds.bottom <= 720);
+      pdf.performClick();
+      settle(activity);
+      assertEquals(1, sources.sources.size());
+      String sourceId = sources.sources.get(0).id;
+      assertEquals("drive:root", sources.sources.get(0).root);
+      Dialog actions = ShadowDialog.getLatestDialog();
+      assertTrue(actions.isShowing());
+      assertNotNull(actions.getWindow().getDecorView().findViewWithTag("remote-open-online"));
+      assertTrue(decor.findViewWithTag("remote-file:pdf").hasFocus());
+      actions.cancel();
+      decor.findViewWithTag("nav-sources").performClick();
+      decor.findViewWithTag("cloud-folder-add").performClick();
+      settle(activity);
+      decor.findViewWithTag("cloud-book-file:pdf").performClick();
+      settle(activity);
+      assertEquals("an existing folder must be reused", 1, sources.sources.size());
+      assertEquals(sourceId, sources.sources.get(0).id);
+      assertEquals(
+          "picker and action panel must not download book content", 0, provider.resolves.get());
+      assertEquals(
+          "the picker must request files, not just child folders",
+          0,
+          provider.directoryRequests.get());
     }
   }
 
@@ -243,8 +305,10 @@ public class NativeCloudFlowTest {
   }
 
   private static final class FakeProvider implements CloudProvider {
-    final AtomicInteger polls = new AtomicInteger(), resolves = new AtomicInteger();
-    boolean failNextList, longList;
+    final AtomicInteger polls = new AtomicInteger(),
+        resolves = new AtomicInteger(),
+        directoryRequests = new AtomicInteger();
+    boolean failNextList, longList, booksOnly;
     final CloudAccount account;
     final String providerId, providerLabel;
 
@@ -292,20 +356,20 @@ public class NativeCloudFlowTest {
         failNextList = false;
         throw new java.io.IOException("测试连接中断");
       }
-      if (!directoriesOnly)
-        return new ListPage(
-            java.util.Arrays.asList(
-                new Entry("folder:essay", folder, "散文与随笔", true, 0),
-                new Entry("file:sample", folder, "阅读示例：长书名在电视上的清晰呈现.txt", false, 524288),
-                new Entry("file:epub", folder, "书房阅读指南.epub", false, 2097152),
-                new Entry("file:pdf", folder, "家庭书库手册.pdf", false, 4194304)),
-            "");
-      if (!folder.equals("drive:root")) return new ListPage(Collections.emptyList(), "");
+      if (directoriesOnly) directoryRequests.incrementAndGet();
       java.util.List<Entry> entries = new java.util.ArrayList<>();
-      entries.add(new Entry("drive:nested", folder, "我的书籍", true, 0));
-      if (longList)
-        for (int i = 0; i < 30; i++)
-          entries.add(new Entry("drive:item" + i, folder, "中文长目录名称与分类 " + i, true, 0));
+      if (folder.equals("drive:root") && !booksOnly) {
+        entries.add(new Entry("drive:nested", folder, "我的书籍", true, 0));
+        if (longList)
+          for (int i = 0; i < 30; i++)
+            entries.add(new Entry("drive:item" + i, folder, "中文长目录名称与分类 " + i, true, 0));
+      }
+      if (!directoriesOnly) {
+        entries.add(new Entry("file:sample", folder, "阅读示例：长书名在电视上的清晰呈现.txt", false, 524288));
+        entries.add(new Entry("file:epub", folder, "书房阅读指南.epub", false, 2097152));
+        entries.add(new Entry("file:pdf", folder, "家庭书库手册.pdf", false, 4194304));
+        entries.add(new Entry("file:audio", folder, "配套音频.mp3", false, 1048576));
+      }
       return new ListPage(entries, "");
     }
 

@@ -1198,8 +1198,8 @@ public final class MainActivity extends Activity {
     CloudAccount account = pickingAccount;
     if (account == null) return;
     job(
-        "正在加载网盘文件夹",
-        () -> clouds.page(account, folderId, cursor, true),
+        "正在加载网盘目录",
+        () -> clouds.page(account, folderId, cursor, false),
         page -> {
           String previousFolder = pickingFolder;
           cloudParents.clear();
@@ -1237,36 +1237,50 @@ public final class MainActivity extends Activity {
           TextView cancel = action(tools, "取消", false, this::showSources);
           add(pageHeader, tools, -1, 44);
           gap(pageHeader, 4);
-          add(pageHeader, SourceUi.section(this, "此位置中的文件夹", "按确定键进入文件夹"), -1, compact ? 24 : 28);
-          int folders = 0;
-          View firstFolder = null;
-          for (CloudProvider.Entry entry : page.entries) {
-            if (!entry.directory) continue;
-            folders++;
+          add(pageHeader, SourceUi.section(this, "文件夹与书籍", "进入文件夹，或选择书籍打开"), -1, compact ? 24 : 28);
+          int visibleEntries = 0;
+          View firstEntry = null;
+          List<CloudProvider.Entry> sorted = new ArrayList<>(page.entries);
+          sorted.sort(
+              Comparator.comparing((CloudProvider.Entry e) -> !e.directory)
+                  .thenComparing(e -> e.name));
+          for (CloudProvider.Entry entry : sorted) {
+            if (!entry.directory && !BookRecord.supported(entry.name)) continue;
+            visibleEntries++;
             LinearLayout item =
                 SourceUi.row(
                     this,
-                    "folder",
+                    entry.directory ? "folder" : "book",
                     entry.name,
-                    "",
-                    "进入  〉",
+                    entry.directory
+                        ? "文件夹"
+                        : bookFileType(entry.name)
+                            + " · "
+                            + (entry.size > 0 ? bytes(entry.size) : "大小未知"),
+                    entry.directory ? "进入  〉" : "打开  〉",
                     () -> {
-                      Deque<CloudLocation> parents = new ArrayDeque<>(cloudParents);
-                      parents.push(new CloudLocation(folderId, label, cursor));
-                      loadCloudFolder(entry.id, entry.name, "", parents);
+                      if (entry.directory) {
+                        Deque<CloudLocation> parents = new ArrayDeque<>(cloudParents);
+                        parents.push(new CloudLocation(folderId, label, cursor));
+                        loadCloudFolder(entry.id, entry.name, "", parents);
+                      } else saveCloudFolder(entry);
                     });
-            item.setTag("cloud-folder-" + entry.id);
-            if (firstFolder == null || entry.id.equals(previousFolder)) firstFolder = item;
-            add(body, item, -1, 52);
+            item.setTag((entry.directory ? "cloud-folder-" : "cloud-book-") + entry.id);
+            if (firstEntry == null || entry.id.equals(previousFolder)) firstEntry = item;
+            add(body, item, -1, 62);
             gap(body, 8);
           }
           boolean virtualRoot = folderId.startsWith("@");
-          if (folders == 0) {
+          if (visibleEntries == 0) {
             gap(body, 18);
-            add(body, heading(this, "这里没有子文件夹", 19), -1, 34);
+            add(body, heading(this, "本页没有可读书籍或子文件夹", 19), -1, 34);
             add(
                 body,
-                text(this, virtualRoot ? "请刷新网盘连接后重试。" : "如果书籍就在这里，可直接使用当前文件夹。", 13, MUTED),
+                text(
+                    this,
+                    virtualRoot ? "请刷新网盘连接后重试。" : "支持 EPUB、AZW3、MOBI、AZW、PRC、TXT 和 PDF。",
+                    13,
+                    MUTED),
                 -1,
                 40);
           }
@@ -1274,10 +1288,11 @@ public final class MainActivity extends Activity {
             TextView next =
                 button(
                     this,
-                    "下一页文件夹  〉",
+                    "下一页内容  〉",
                     false,
                     () -> loadCloudFolder(folderId, label, page.nextPageToken));
             add(body, next, -1, 44);
+            next.setTag("cloud-folder-next");
           }
           if (!cursor.isEmpty())
             add(
@@ -1293,23 +1308,27 @@ public final class MainActivity extends Activity {
           add(labels, SourceUi.single(this, "当前：" + label, 14, TEXT), -1, 24);
           add(
               labels,
-              SourceUi.single(this, virtualRoot ? "请先进入资源库或备份盘" : "只保存文件夹位置，不自动下载书籍", 11, MUTED),
+              SourceUi.single(this, virtualRoot ? "请先进入资源库或备份盘" : "只添加来源，不自动下载书籍", 11, MUTED),
               -1,
               20);
           selected.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
           gap(selected, 12);
-          TextView select = button(this, "使用此文件夹", true, this::saveCloudFolder);
+          TextView select = button(this, "使用并浏览书籍", true, this::saveCloudFolder);
           select.setTag("cloud-folder-save");
           select.setEnabled(!virtualRoot);
           select.setFocusable(!virtualRoot);
           select.setAlpha(virtualRoot ? .4f : 1);
           add(selected, select, 180, 44);
           add(pageFooter, selected, -1, 52);
-          focus(firstFolder != null ? firstFolder : virtualRoot ? cancel : select);
+          focus(firstEntry != null ? firstEntry : virtualRoot ? cancel : select);
         });
   }
 
   private void saveCloudFolder() {
+    saveCloudFolder(null);
+  }
+
+  private void saveCloudFolder(CloudProvider.Entry selectedBook) {
     CloudAccount account = pickingAccount;
     if (account == null) return;
     if (pickingFolder.startsWith("@")) {
@@ -1320,8 +1339,7 @@ public final class MainActivity extends Activity {
       if (existing.type == SourceConfig.Type.CLOUD
           && existing.accountId.equals(account.id)
           && existing.root.equals(pickingFolder)) {
-        message("这个文件夹已经添加到书籍来源");
-        showSources();
+        browseSelectedCloudFolder(existing, selectedBook);
         return;
       }
     SourceConfig source = new SourceConfig();
@@ -1344,9 +1362,26 @@ public final class MainActivity extends Activity {
           }
           return source;
         },
-        saved -> {
-          showSources();
-          message("已添加书籍来源，可以浏览并在线阅读");
+        saved -> browseSelectedCloudFolder(saved, selectedBook));
+  }
+
+  private void browseSelectedCloudFolder(SourceConfig source, CloudProvider.Entry selectedBook) {
+    browse(
+        source,
+        "",
+        () -> {
+          cloudBrowserParents.clear();
+          cloudFolderNames.clear();
+          browserFocusPath = selectedBook == null ? "" : selectedBook.id;
+        },
+        entries -> {
+          if (selectedBook == null) return;
+          for (RemoteEntry entry : entries)
+            if (!entry.directory && entry.path.equals(selectedBook.id)) {
+              remoteActions(source, entry);
+              return;
+            }
+          message("这本书已移动或不可用，请在当前目录重新选择。");
         });
   }
 
@@ -1501,6 +1536,14 @@ public final class MainActivity extends Activity {
   }
 
   private void browse(SourceConfig source, String path, Runnable commitNavigation) {
+    browse(source, path, commitNavigation, entries -> {});
+  }
+
+  private void browse(
+      SourceConfig source,
+      String path,
+      Runnable commitNavigation,
+      Consumer<List<RemoteEntry>> afterShown) {
     job(
         "正在读取书库目录",
         () -> network.list(source, path),
@@ -1511,6 +1554,7 @@ public final class MainActivity extends Activity {
           sourcePath = path;
           commitNavigation.run();
           showRemote(source, path, entries);
+          afterShown.accept(entries);
         });
   }
 

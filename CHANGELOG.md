@@ -2,6 +2,12 @@
 
 这里记录主干开发版本；是否已公开发布，以 [GitHub Releases](https://github.com/spudhero/ShufangTV/releases) 为准。自动打包下载见 [Actions](https://github.com/spudhero/ShufangTV/actions/workflows/android.yml)。
 
+## 0.5.0-alpha.4 · 版本码 11
+
+- 网盘选择页同时展示子文件夹和支持的书籍，修复书籍被“仅文件夹”筛选隐藏的问题。
+- 选用文件夹后直接进入书籍列表；选择书籍可添加或复用当前来源并打开阅读方式面板，不自动下载正文。
+- 保留底部固定操作与多页目录导航；仅有书籍的目录、720p 焦点、重复来源和不隐式下载已纳入回归。
+
 ## 0.5.0-alpha.3 · 版本码 10
 
 - 修复阿里云盘成功响应中 `code:null` 被误判为失败，恢复设备会话和目录读取。

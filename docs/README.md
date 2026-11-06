@@ -1,6 +1,6 @@
 # 文档导航
 
-当前应用：`0.5.0-alpha.3` / 10。主干开发版本、自动构建 APK 和历史 GitHub Releases 分别标明，不用旧报告推断当前功能仍缺失。
+当前应用：`0.5.0-alpha.4` / 11。主干开发版本、自动构建 APK 和历史 GitHub Releases 分别标明，不用旧报告推断当前功能仍缺失。
 
 | 目的 | 文档 |
 | --- | --- |
@@ -14,6 +14,7 @@
 | 首页 / 书库真实封面 | [封面验收](COVER-VALIDATION-2026-11-06.md) |
 | 图文、漫画、PDF 与 Kindle 格式 | [媒体阅读验收](MEDIA-READING-VALIDATION-2026-11-06.md) |
 | 网盘来源与扫码限制 | [连接说明](CLOUD-CONNECTIONS.md)、[实机修复](CLOUD-FIX-2026-11-06.md)、[协议参考边界](CLOUD-REFERENCE.md) |
+| 网盘目录里的书籍不显示 | [选择页修复与验证](CLOUD-BOOKS-2026-11-06.md) |
 | 设计、图标及原生截图 | [UI 设计](UI-DESIGN.md)、[UI 复核](UI-AUDIT-2026-11-06.md)、[截图](SCREENSHOTS.md)、[设计原型](../design/README.md) |
 | 架构、缓存与存储规则 | [架构](ARCHITECTURE.md) |
 | 实施经验 | [经验记录](LESSONS-LEARNED.md) |

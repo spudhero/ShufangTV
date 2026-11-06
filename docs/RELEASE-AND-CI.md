@@ -1,6 +1,6 @@
 # 发布签名与 GitHub 自动打包
 
-更新：2026-11-06。当前应用版本为 `0.5.0-alpha.3` / 10；固定发布签名与自动打包流程已建立，不代表 alpha 已达到稳定版标准。已有 GitHub Releases、APK、标签和开发密钥保持原样。
+更新：2026-11-06。当前应用版本为 `0.5.0-alpha.4` / 11；固定发布签名与自动打包流程已建立，不代表 alpha 已达到稳定版标准。已有 GitHub Releases、APK、标签和开发密钥保持原样。
 
 ## 自动构建入口
 
@@ -78,7 +78,7 @@ python3 scripts/configure-release-secrets.py --update-existing
 
 ## 安装与升级边界
 
-电视当前 `0.5.0-alpha.3` 是原开发签名，证书 SHA-256 为 `9aeb612cabfb2d39bd0d7b40f212a562c0aee3440a9bd4b84e376f335ab6e0e0`。新 release 签名与其不同，Android 会拒绝直接覆盖安装；同一包名和更大版本号也不能解决签名不一致。
+电视当前 `0.5.0-alpha.4` 是原开发签名，证书 SHA-256 为 `9aeb612cabfb2d39bd0d7b40f212a562c0aee3440a9bd4b84e376f335ab6e0e0`。新 release 签名与其不同，Android 会拒绝直接覆盖安装；同一包名和更大版本号也不能解决签名不一致。
 
 电视沿用原开发签名覆盖升级，未卸载或切换到发布签名。正式切换签名前应确认书库、书签、来源及语音配置的迁移方式；应用目前没有完整数据导入 / 导出能力，不应通过卸载来进行无备份的迁移。此前的 debug APK 和 GitHub Releases 保留原证书与历史记录。后续 release 构建必须持续使用本次 release 密钥，并在更新应用时递增 versionCode。
 
