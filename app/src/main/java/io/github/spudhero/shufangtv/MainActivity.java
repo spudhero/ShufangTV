@@ -695,6 +695,15 @@ public final class MainActivity extends Activity {
   }
 
   private void exportNotes(boolean markdown) {
+    Intent intent =
+        new Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(markdown ? "text/markdown" : "text/plain")
+            .putExtra(Intent.EXTRA_TITLE, "书房TV-书签与笔记." + (markdown ? "md" : "txt"));
+    if (isDocumentPlaceholder(intent)) {
+      message("这台电视没有可用的系统文件保存界面。收藏仍保存在书房 TV；安装支持系统文档保存的文件管理器后可重试。");
+      return;
+    }
     String snapshot = NoteExport.render(library, markdown);
     job(
         "准备笔记导出",
@@ -706,11 +715,6 @@ public final class MainActivity extends Activity {
           return file;
         },
         file -> {
-          Intent intent =
-              new Intent(Intent.ACTION_CREATE_DOCUMENT)
-                  .addCategory(Intent.CATEGORY_OPENABLE)
-                  .setType(markdown ? "text/markdown" : "text/plain")
-                  .putExtra(Intent.EXTRA_TITLE, "书房TV-书签与笔记." + (markdown ? "md" : "txt"));
           try {
             startActivityForResult(intent, EXPORT_NOTES);
           } catch (ActivityNotFoundException e) {
@@ -1682,7 +1686,8 @@ public final class MainActivity extends Activity {
                           runOnUiThread(
                               () -> {
                                 if (working != null && operation == token)
-                                  working.setTitle(
+                                  ReadingDialog.updateTitle(
+                                      working,
                                       "正在保存  "
                                           + bytes(done)
                                           + (total > 0 ? " / " + bytes(total) : ""));
@@ -1723,11 +1728,26 @@ public final class MainActivity extends Activity {
             .addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
                     | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+    if (isDocumentPlaceholder(intent)) {
+      message("这台电视没有可用的系统文件选择器。可安装支持系统文档选择的文件管理器，或从网络书库在线打开、保存离线。");
+      return;
+    }
     try {
       startActivityForResult(intent, OPEN_DOCUMENT);
     } catch (ActivityNotFoundException e) {
       message("这台电视没有可用的系统文件选择器。可安装支持系统文件选择的文件管理器，或连接 SMB / WebDAV 书库。");
     }
+  }
+
+  private boolean isDocumentPlaceholder(Intent intent) {
+    android.content.pm.ResolveInfo handler =
+        getPackageManager()
+            .resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+    // Some Android TV builds resolve document intents to a system stub that only cancels.
+    // A null lookup may be package visibility filtering; let startActivity handle that case.
+    return handler != null
+        && handler.activityInfo != null
+        && "com.google.android.tv.frameworkpackagestubs".equals(handler.activityInfo.packageName);
   }
 
   @Override

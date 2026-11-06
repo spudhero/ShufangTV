@@ -39,6 +39,13 @@ public class ReadingDialog extends AlertDialog.Builder {
     return this;
   }
 
+  public static void updateTitle(AlertDialog dialog, CharSequence title) {
+    dialog.setTitle(title);
+    if (dialog.getWindow() == null) return;
+    View header = dialog.getWindow().getDecorView().findViewWithTag("reading-dialog-title");
+    if (header instanceof TextView) ((TextView) header).setText(title);
+  }
+
   @Override
   public AlertDialog.Builder setMessage(CharSequence message) {
     summary = message;
@@ -82,6 +89,7 @@ public class ReadingDialog extends AlertDialog.Builder {
     titleHeader = header;
     header.setPadding(dp(activity, 24), dp(activity, 22), dp(activity, 24), dp(activity, 12));
     TextView label = heading(activity, title.toString(), 21);
+    label.setTag("reading-dialog-title");
     if (android.os.Build.VERSION.SDK_INT >= 28) label.setAccessibilityHeading(true);
     label.setMaxLines(2);
     add(header, label, -1, -2);

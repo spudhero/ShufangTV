@@ -3,6 +3,9 @@ package io.github.spudhero.shufangtv;
 import static org.junit.Assert.*;
 
 import android.app.AlertDialog;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Rect;
@@ -19,6 +22,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.Shadows;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
@@ -101,6 +105,54 @@ public class GlobalSettingsTest {
       dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
       assertTrue("Invalid source must keep its form open", dialog.isShowing());
       assertNotNull(findError(dialog.getWindow().getDecorView()));
+    }
+  }
+
+  @Test
+  public void tvDocumentStubOffersRecoveryAndPreservesSavedNotes() throws Exception {
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      ResolveInfo stub = new ResolveInfo();
+      stub.activityInfo = new ActivityInfo();
+      stub.activityInfo.packageName = "com.google.android.tv.frameworkpackagestubs";
+      stub.activityInfo.name = stub.activityInfo.packageName + ".Stubs$DocumentsStub";
+      Intent open =
+          new Intent(Intent.ACTION_OPEN_DOCUMENT)
+              .setType("*/*")
+              .addCategory(Intent.CATEGORY_OPENABLE);
+      Intent create =
+          new Intent(Intent.ACTION_CREATE_DOCUMENT)
+              .setType("text/plain")
+              .addCategory(Intent.CATEGORY_OPENABLE);
+      Shadows.shadowOf(activity.getPackageManager()).addResolveInfoForIntent(open, stub);
+      Shadows.shadowOf(activity.getPackageManager()).addResolveInfoForIntent(create, stub);
+      LibraryStore library = ReflectionHelpers.getField(activity, "library");
+      BookRecord book = new BookRecord();
+      book.title = "电视收藏";
+      library.books.add(book);
+      LibraryStore.Mark mark = new LibraryStore.Mark();
+      mark.bookId = book.id;
+      mark.excerpt = "系统文件界面缺失时也不能丢失收藏";
+      mark.end = mark.excerpt.length();
+      mark.note = "保留备注";
+      library.marks.add(mark);
+      library.save();
+      ReflectionHelpers.callInstanceMethod(activity, "chooseLocal");
+      ShadowLooper.idleMainLooper();
+      AlertDialog explanation = ShadowAlertDialog.getLatestAlertDialog();
+      assertTrue(contains(explanation.getWindow().getDecorView(), "网络书库"));
+      explanation.dismiss();
+      ReflectionHelpers.callInstanceMethod(
+          activity, "exportNotes", ReflectionHelpers.ClassParameter.from(boolean.class, false));
+      ShadowLooper.idleMainLooper();
+      explanation = ShadowAlertDialog.getLatestAlertDialog();
+      assertTrue(contains(explanation.getWindow().getDecorView(), "收藏仍保存在书房 TV"));
+      assertNull(Shadows.shadowOf(activity).getNextStartedActivityForResult());
+      assertFalse(new File(activity.getCacheDir(), "pending-notes-export.txt").exists());
+      LibraryStore reloaded = new LibraryStore(activity);
+      assertEquals(1, reloaded.marks.size());
+      assertEquals("保留备注", reloaded.marks.get(0).note);
     }
   }
 
