@@ -15,6 +15,7 @@ import io.github.spudhero.shufangtv.cloud.*;
 import io.github.spudhero.shufangtv.data.*;
 import io.github.spudhero.shufangtv.net.*;
 import io.github.spudhero.shufangtv.reader.*;
+import io.github.spudhero.shufangtv.speech.SpeechSettings;
 import io.github.spudhero.shufangtv.ui.*;
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -1900,31 +1901,23 @@ public final class MainActivity extends Activity {
 
   private void showSettings() {
     View previous = route.equals("settings") && root != null ? root.findFocus() : null;
-    boolean hasSpeechEngine = SpeechSetup.hasEngine(this);
     String anchor =
-        previous == null
-            ? hasSpeechEngine ? "settings-font-less" : "settings-speech-settings"
-            : String.valueOf(previous.getTag());
+        previous == null ? "settings-speech-settings" : String.valueOf(previous.getTag());
     shell("settings", "设置", "全局阅读默认值 · 本书独立排版不受影响");
-    settingsHasSpeechEngine = hasSpeechEngine;
+    settingsHasSpeechEngine = SpeechSetup.hasEngine(this);
     ReadingPanel.section(body, "朗读与语音");
-    add(body, text(this, settingsHasSpeechEngine ? "已检测到系统语音引擎" : "未检测到语音引擎", 14, TEXT), -1, -2);
+    add(body, text(this, SpeechSettings.status(this), 14, TEXT), -1, -2);
     gap(body, 6);
-    TextView speechHelp =
-        text(
-            this,
-            settingsHasSpeechEngine
-                ? "开启朗读时检查中文支持；语音数据由系统引擎管理。"
-                : "需在电视系统中安装或启用支持中文的文字转语音引擎，再返回开启朗读。",
-            13,
-            MUTED);
+    TextView speechHelp = text(this, "默认离线中文 · 下载语音包后不依赖系统语音。也可选择网络或系统引擎。", 13, MUTED);
     speechHelp.setLineSpacing(dp(this, 4), 1);
     add(body, speechHelp, -1, -2);
     gap(body, 6);
     add(body, text(this, "朗读正文仅在前台播放；PDF 与纯图片暂不支持识字朗读。", 12, MUTED), -1, -2);
     gap(body, 10);
     ReadingPanel.row(
-        body, globalSetting("系统语音设置", "speech-settings", false, () -> SpeechSetup.open(this)));
+        body,
+        globalSetting(
+            "管理朗读语音", "speech-settings", false, () -> SpeechPanel.show(this, this::showSettings)));
     ReadingStyle style = ReadingStyle.defaults(preferences);
     ReadingPanel.section(body, "字号 · " + style.font + " 号");
     ReadingPanel.row(
@@ -2119,28 +2112,28 @@ public final class MainActivity extends Activity {
 
   private static String guideContents() {
     return "欢迎来到书房 TV\n\n"
-        + "一卷在手，片刻清宁。\n\n"
-        + "书房 TV 是为客厅电视和遥控器编写的中文阅读器。你可以连接家庭书库在线读，也可以明确选择保存到本地后离线读。\n\n"
-        + "在线阅读\n\n"
-        + "在书籍来源中选择网盘，用手机扫码确认登录，再选择书籍文件夹。也可以添加 SMB 或 WebDAV 家庭书库。选中一本 EPUB、AZW3、MOBI、TXT 或"
-        + " PDF，再选择在线打开。在线模式按需读取文件，临时数据保存在内存，不自动保存离线副本。EPUB 按章节和图片读取；Kindle"
-        + " 格式需重建所选文件的压缩记录。服务器必须支持文件随机读取。\n\n"
-        + "离线阅读\n\n"
-        + "在同一个书籍菜单中选择保存到本地，确认大小与空间后再下载。电视本地和 U 盘中的文件可通过系统文件选择器直接读取，不会额外复制。\n\n"
-        + "遥控器操作\n\n"
-        + "左右键翻页；确定键打开目录、书签和排版菜单。下键进入底部操作区，上键回到正文。返回键逐层返回。\n\n"
-        + "阅读位置\n\n"
-        + "书房按章节和文字位置保存进度，改变字号、行距后继续读。在线与离线副本共享同一个阅读位置。\n\n"
-        + "排版与正文搜索\n\n"
-        + "阅读菜单可设置窄、中、宽栏，以及全局默认或仅本书排版。正文搜索只检索当前章节或片段；退出搜索可回到原位置。\n\n"
-        + "朗读、收藏与自动翻页\n\n"
-        + "朗读使用电视的中文语音引擎，离开应用会暂停。收藏正文时用上下键选段、确定键添加备注；我的书签可管理和导出。自动翻页关菜单后恢复，手动暂停或翻页后需主动继续。\n\n"
-        + "整理书库\n\n"
-        + "书籍菜单可置顶、加入书单并标为待读、在读或已读；这些操作不移动来源文件。\n\n"
-        + "开源与边界\n\n"
-        + "所有应用源码在 github.com/spudhero/ShufangTV。支持纯图片 EPUB、图文混排及无 DRM 的 AZW3/MOBI；PDF"
-        + " 默认全屏撑满屏宽，上下滚动；确定打开菜单可缩放并恢复 100%，放大后左右平移。带 DRM"
-        + " 的书籍无法读取。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
+               + "一卷在手，片刻清宁。\n\n"
+               + "书房 TV 是为客厅电视和遥控器编写的中文阅读器。你可以连接家庭书库在线读，也可以明确选择保存到本地后离线读。\n\n"
+               + "在线阅读\n\n"
+               + "在书籍来源中选择网盘，用手机扫码确认登录，再选择书籍文件夹。也可以添加 SMB 或 WebDAV 家庭书库。选中一本 EPUB、AZW3、MOBI、TXT 或"
+               + " PDF，再选择在线打开。在线模式按需读取文件，临时数据保存在内存，不自动保存离线副本。EPUB 按章节和图片读取；Kindle"
+               + " 格式需重建所选文件的压缩记录。服务器必须支持文件随机读取。\n\n"
+               + "离线阅读\n\n"
+               + "在同一个书籍菜单中选择保存到本地，确认大小与空间后再下载。电视本地和 U 盘中的文件可通过系统文件选择器直接读取，不会额外复制。\n\n"
+               + "遥控器操作\n\n"
+               + "左右键翻页；确定键打开目录、书签和排版菜单。下键进入底部操作区，上键回到正文。返回键逐层返回。\n\n"
+               + "阅读位置\n\n"
+               + "书房按章节和文字位置保存进度，改变字号、行距后继续读。在线与离线副本共享同一个阅读位置。\n\n"
+               + "排版与正文搜索\n\n"
+               + "阅读菜单可设置窄、中、宽栏，以及全局默认或仅本书排版。正文搜索只检索当前章节或片段；退出搜索可回到原位置。\n\n"
+               + "朗读、收藏与自动翻页\n\n"
+               + "在设置的朗读与语音中选择管理朗读语音，首次下载离线中文语音包后，不需要系统语音即可朗读。也可主动配置网络语音或选用系统引擎。离开应用会暂停，回来后需手动继续。收藏正文时用上下键选段、确定键添加备注；我的书签可管理和导出。自动翻页关菜单后恢复，手动暂停或翻页后需主动继续。\n\n"
+               + "整理书库\n\n"
+               + "书籍菜单可置顶、加入书单并标为待读、在读或已读；这些操作不移动来源文件。\n\n"
+               + "开源与边界\n\n"
+               + "所有应用源码在 github.com/spudhero/ShufangTV。支持纯图片 EPUB、图文混排及无 DRM 的 AZW3/MOBI；PDF"
+               + " 默认全屏撑满屏宽，上下滚动；确定打开菜单可缩放并恢复 100%，放大后左右平移。带 DRM"
+               + " 的书籍无法读取。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
   }
 
   private <T> void job(String title, Callable<T> work, Consumer<T> done) {

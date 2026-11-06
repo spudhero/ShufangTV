@@ -1,5 +1,7 @@
 # 验证记录
 
+当前开发版 `0.5.0-alpha.1` / 版本码 8：**215 项 JVM / 原生界面测试**（core 50、app 165）、**4 项 Sony 设备测试**通过，lint 0 错误、22 警告。没有系统 TTS 的 Sony 已通过离线中文 JNI / AudioTrack、语速和取消测试。实际样音、下载与 UI 证据见 [独立语音验收](SPEECH-INTEGRATION.md)。下文保留旧版结论，不代表当前仍依赖系统语音。
+
 当前开发版为 `0.4.0-alpha.3` / 版本码 7：**203 项 JVM / 原生界面测试**（core 48、app 155）通过，lint 0 错误、21 警告，四种 ABI 构建成功；Sony Android 10 上的 2 项设备测试覆盖真实 PDFium 视口、完整第一页缩略图及原生 Kindle 解码。16 本 Huawei SMB 真实封面的结果见 [封面修复验收](COVER-VALIDATION-2026-11-06.md)。插图、漫画、PDF 屏宽和 AZW3/MOBI 阅读记录保留在 [媒体阅读验证](MEDIA-READING-VALIDATION-2026-11-06.md)，UI / 启动器见 [UI 复核](UI-AUDIT-2026-11-06.md)。下方保留历史版本的原结果和校验值，不作为当前缺口说明。
 
 2026-11-06 主干集成开发版 `0.3.0-alpha.1` 已通过 **173 项测试**（core 38、app 135），lint 0 错误、20 个警告，以及 APK 构建与签名检查。见 [集成验证与设备记录](INTEGRATION-2026-11-06.md) 和 [真实 SMB 补充验证](SMB-DEVICE-VALIDATION-2026-11-06.md)。阅读分支合并前的 164 项检查保留在 [阅读体验验证记录](READING-VALIDATION.md)。

@@ -15,6 +15,7 @@ import io.github.spudhero.shufangtv.core.DocumentViewport;
 import io.github.spudhero.shufangtv.core.TextNavigator;
 import io.github.spudhero.shufangtv.data.*;
 import io.github.spudhero.shufangtv.reader.*;
+import io.github.spudhero.shufangtv.speech.SpeechSettings;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -617,9 +618,7 @@ public final class ReaderScreen extends LinearLayout {
           tool(
               dialog,
               "朗读正文",
-              speech != null
-                  ? "返回朗读控制"
-                  : SpeechSetup.hasEngine(activity) ? "开启时检查中文支持" : "未检测到语音引擎",
+              speech != null ? "返回朗读控制" : SpeechSettings.status(activity),
               this::startSpeech));
     ReadingPanel.section(content, "记录");
     View bookmark = tool(dialog, "添加书签", "记住当前阅读位置", this::addBookmark);
@@ -875,7 +874,7 @@ public final class ReaderScreen extends LinearLayout {
       updateControls();
       return;
     }
-    if (!SpeechSetup.hasEngine(activity)) {
+    if (!SpeechSettings.available(activity)) {
       showSpeechSetup();
       return;
     }
@@ -1125,11 +1124,14 @@ public final class ReaderScreen extends LinearLayout {
     new ReaderDialog(activity)
         .setTitle("朗读设置")
         .setItems(
-            new String[] {"语速", "定时停止", "结束朗读"},
+            new String[] {"语速", "定时停止", "语音管理 · " + SpeechSettings.name(activity), "结束朗读"},
             (d, i) -> {
               if (i == 0) speechRate();
               else if (i == 1) speechTimer();
-              else stopSpeech();
+              else if (i == 2) {
+                stopSpeech();
+                SpeechPanel.show(activity, null);
+              } else stopSpeech();
             })
         .setNegativeButton("返回", null)
         .show();
@@ -1164,9 +1166,10 @@ public final class ReaderScreen extends LinearLayout {
 
   private void showSpeechSetup() {
     new ReaderDialog(activity)
-        .setTitle("需要中文语音引擎")
-        .setMessage("请在系统中安装或启用支持中文的文字转语音引擎，再返回阅读菜单开启朗读。语音数据下载由系统引擎管理。")
-        .setPositiveButton("打开语音设置", (d, w) -> SpeechSetup.open(activity))
+        .setTitle("准备朗读语音")
+        .setMessage(
+            SpeechSettings.status(activity) + "。可下载应用内离线中文语音包，无需安装系统语音。配置完成后返回阅读菜单开启朗读，阅读位置会保留。")
+        .setPositiveButton("管理朗读语音", (d, w) -> SpeechPanel.show(activity, null))
         .setNegativeButton("返回", null)
         .show();
   }

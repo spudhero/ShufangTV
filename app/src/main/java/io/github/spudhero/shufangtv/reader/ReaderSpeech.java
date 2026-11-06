@@ -8,11 +8,10 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Handler;
 import android.os.Looper;
-import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
 import io.github.spudhero.shufangtv.core.Narration;
 import io.github.spudhero.shufangtv.core.TextNavigator;
-import java.util.Locale;
+import io.github.spudhero.shufangtv.speech.SpeechEngine;
+import io.github.spudhero.shufangtv.speech.SpeechSettings;
 
 /**
  * Owns platform audio resources only while a reader is open. All callbacks run on the UI thread.
@@ -36,12 +35,18 @@ public final class ReaderSpeech implements AutoCloseable {
   private final MediaSession media;
   private final Narration narration;
   private final Listener listener;
-  private TextToSpeech tts;
+  private final SpeechEngine engine;
   private boolean closed, ready, foreground = true, focused;
   private float rate;
+  private String failureMessage = "朗读未完成，请在朗读与语音中检查配置";
 
   public ReaderSpeech(Context context, float rate, Listener listener) {
+    this(context, rate, listener, SpeechSettings.engine(context));
+  }
+
+  public ReaderSpeech(Context context, float rate, Listener listener, SpeechEngine engine) {
     this.listener = listener;
+    this.engine = engine;
     this.rate = rate;
     audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
     AudioAttributes attributes =
@@ -64,14 +69,11 @@ public final class ReaderSpeech implements AutoCloseable {
         new Narration(
             new Narration.Engine() {
               public boolean speak(String text, long token) {
-                return ready
-                    && !closed
-                    && tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, Long.toString(token))
-                        == TextToSpeech.SUCCESS;
+                return ready && !closed && engine.speak(text, token);
               }
 
               public void stop() {
-                if (tts != null) tts.stop();
+                engine.stop();
               }
             },
             new Narration.Listener() {
@@ -104,7 +106,7 @@ public final class ReaderSpeech implements AutoCloseable {
               }
 
               public void failed() {
-                if (!closed) listener.message("朗读未完成，请检查系统语音引擎后重试");
+                if (!closed) listener.message(failureMessage);
               }
             });
     media.setCallback(
@@ -135,59 +137,45 @@ public final class ReaderSpeech implements AutoCloseable {
           }
         },
         main);
-    tts =
-        new TextToSpeech(
-            context.getApplicationContext(),
-            status ->
-                main.post(
-                    () -> {
-                      if (closed) return;
-                      int language =
-                          status == TextToSpeech.SUCCESS
-                              ? tts.setLanguage(Locale.SIMPLIFIED_CHINESE)
-                              : TextToSpeech.ERROR;
-                      ready = language >= TextToSpeech.LANG_AVAILABLE;
-                      if (ready) {
-                        tts.setAudioAttributes(attributes);
-                        tts.setSpeechRate(this.rate);
-                      }
-                      listener.ready(ready);
-                    }));
-    tts.setOnUtteranceProgressListener(
-        new UtteranceProgressListener() {
-          @Override
-          public void onStart(String id) {}
-
-          @Override
-          public void onDone(String id) {
-            callback(id, 0, 0);
+    engine.initialize(
+        rate,
+        new SpeechEngine.Listener() {
+          public void ready(boolean available) {
+            main.post(
+                () -> {
+                  if (!closed) {
+                    ready = available;
+                    listener.ready(available);
+                  }
+                });
           }
 
-          @Override
-          public void onError(String id) {
-            callback(id, 1, 0);
+          public void done(long token) {
+            main.post(
+                () -> {
+                  if (!closed) narration.done(token);
+                });
           }
 
-          @Override
-          public void onRangeStart(String id, int start, int end, int frame) {
-            callback(id, 2, start);
+          public void progress(long token, int offset) {
+            main.post(
+                () -> {
+                  if (!closed) narration.progress(token, offset);
+                });
           }
-        });
-  }
 
-  private void callback(String id, int type, int start) {
-    long token;
-    try {
-      token = Long.parseLong(id);
-    } catch (RuntimeException e) {
-      return;
-    }
-    main.post(
-        () -> {
-          if (closed) return;
-          if (type == 0) narration.done(token);
-          else if (type == 1) narration.error(token);
-          else narration.progress(token, start);
+          public void error(long token, String message) {
+            main.post(
+                () -> {
+                  if (closed) return;
+                  if (token == 0) {
+                    listener.message(message);
+                    return;
+                  }
+                  failureMessage = message == null ? "朗读未完成，请稍后重试" : message;
+                  narration.error(token);
+                });
+          }
         });
   }
 
@@ -202,7 +190,7 @@ public final class ReaderSpeech implements AutoCloseable {
   public void play() {
     if (closed || !foreground) return;
     if (!ready) {
-      listener.message("语音引擎尚未就绪；请安装或启用中文语音数据");
+      listener.message("语音尚未就绪，请在朗读与语音中检查语音包或配置");
       return;
     }
     if (!focused)
@@ -230,7 +218,7 @@ public final class ReaderSpeech implements AutoCloseable {
     rate = value;
     boolean resume = playing();
     pause();
-    if (tts != null) tts.setSpeechRate(value);
+    engine.rate(value);
     if (resume) play();
   }
 
@@ -257,9 +245,6 @@ public final class ReaderSpeech implements AutoCloseable {
     ready = false;
     main.removeCallbacksAndMessages(null);
     media.release();
-    if (tts != null) {
-      tts.shutdown();
-      tts = null;
-    }
+    engine.close();
   }
 }

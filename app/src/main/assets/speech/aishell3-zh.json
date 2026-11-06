@@ -1,0 +1,43 @@
+{
+  "id": "aishell3-zh-1",
+  "name": "轻量中文普通话",
+  "archiveUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
+  "archiveRoot": "vits-icefall-zh-aishell3/",
+  "archiveBytes": 31559701,
+  "archiveSha256": "ab468db3a3308cdd861495e0db2f25d79418a0c00639f74944c7cdf5dd8c6ec1",
+  "installedBytes": 32762508,
+  "files": {
+    "date.fst": {
+      "bytes": 59154,
+      "sha256": "eb8aa079ae3cb81d8f4404992f39d61a0cb990947512b5b8d1e54d1f6980e718"
+    },
+    "speakers.txt": {
+      "bytes": 1392,
+      "sha256": "50a825fc9a89172eee04a4d68869d933d0eca0d847f3b6fcffff9514cc72442d"
+    },
+    "phone.fst": {
+      "bytes": 88630,
+      "sha256": "1ac2b6fa56b1442320c4de7db08353bab8963a2b57f365eebcdd3a2d3562f8d7"
+    },
+    "tokens.txt": {
+      "bytes": 1671,
+      "sha256": "50b45a7b7de1752fd3c7b4755661c285f1547f59186eca2281089a81307ad953"
+    },
+    "model.onnx": {
+      "bytes": 30482262,
+      "sha256": "5511d651b7840c0a93a6bbfd4afd070a2c7f39ca1ec3ff2ecd73191519bbb852"
+    },
+    "number.fst": {
+      "bytes": 64482,
+      "sha256": "743f402181fcfebf76cc2f0546b71fa26476e626fbe4e460fb7b4c3a7a8bd5bd"
+    },
+    "new_heteronym.fst": {
+      "bytes": 21974,
+      "sha256": "ca14b2127e27baa571664e4bb791e143e7425f56a6bc29db08d74f97e6aa4e29"
+    },
+    "lexicon.txt": {
+      "bytes": 2042943,
+      "sha256": "ab2e61d357551e7b24ddd965d924aca784c20165ff58c150794e539c6b5e9e35"
+    }
+  }
+}

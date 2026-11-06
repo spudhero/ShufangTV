@@ -104,6 +104,11 @@ public class ReaderFeaturesTest {
   @Test
   @Config(shadows = io.github.spudhero.shufangtv.reader.ReaderSpeechTest.ControlledTts.class)
   public void narrationTimerMediaKeyAndAutoPagingShareOneReadingPosition() throws Exception {
+    org.robolectric.RuntimeEnvironment.getApplication()
+        .getSharedPreferences("reading", 0)
+        .edit()
+        .putString("speechProvider", "SYSTEM")
+        .commit();
     org.robolectric.shadows.ShadowTextToSpeech.addLanguageAvailability(
         java.util.Locale.SIMPLIFIED_CHINESE);
     android.content.pm.ResolveInfo engine = new android.content.pm.ResolveInfo();

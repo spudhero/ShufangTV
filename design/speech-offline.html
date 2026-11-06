@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="书房 TV 离线中文、Azure 网络及系统语音设置交互设计。所有试听、下载和配置均为合成状态模拟。">
+  <meta property="og:title" content="书房 TV · 朗读与语音">
+  <meta property="og:description" content="面向 Android TV 遥控器的语音设置与阅读衔接原型">
+  <meta property="og:image" content="assets/ui-refinements/tv-banner-640x360.png">
+  <title>书房 TV · 离线中文朗读</title>
+  <link rel="icon" type="image/svg+xml" href="assets/ui-refinements/book-original.svg">
+  <style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+  .od-stack { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill { flex: 1 1 0; min-width: 0; }
+  .od-fixed { flex: none; }
+  .od-grid { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+  .od-stat,.od-field,.od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2,.od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap { white-space: nowrap; }
+  .od-keep { word-break: keep-all; overflow-wrap: anywhere; }
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+  </style>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="assets/speech-offline/speech-offline.css">
+  <script src="assets/speech-offline/speech-state.js" defer></script>
+  <script src="assets/speech-offline/speech-offline.js" defer></script>
+</head>
+<body>
+  <header class="review-toolbar" aria-label="设计审核工具，不属于电视产品界面">
+    <div class="review-brand"><strong>书房 TV · 声音</strong><small>设计审核 / 合成状态 / 无声预览</small></div>
+    <nav class="review-tabs" aria-label="预览场景">
+      <button type="button" data-page="settings" aria-pressed="false">设置概要</button>
+      <button type="button" data-page="manager" aria-pressed="true">语音管理</button>
+      <button type="button" data-page="reader" aria-pressed="false">阅读联动</button>
+    </nav>
+    <label>画布<select id="viewport-size"><option value="1080">1080p · 960×540dp</option><option value="720">720p · 640×360dp</option></select></label>
+    <label>状态样例<select id="fixture">
+      <option value="">当前交互</option><optgroup label="离线中文"><option value="missing" selected>未下载 · 默认</option><option value="downloading">下载进度 · 40%</option><option value="installing">校验安装</option><option value="ready">就绪与试听</option><option value="failed">下载失败</option><option value="checksum">语音包校验失败</option><option value="space">空间不足</option><option value="interrupted">上次准备未完成</option><option value="restart">重启后重新检查</option></optgroup>
+      <optgroup label="Azure 网络"><option value="azure-empty">尚未配置</option><option value="azure-failed">试听失败 · 当前使用</option><option value="azure-ready">本次就绪 · 当前使用</option></optgroup><optgroup label="系统语音"><option value="system-missing">无系统服务</option><option value="system-detected">检测到服务 · 中文待检查</option><option value="system-failed">中文检查未通过</option></optgroup>
+    </select></label>
+    <label>后续结果<select id="result-mode"><option value="success">成功样例</option><option value="fail">失败样例</option></select></label>
+    <label>阅读内容<select id="reading-format"><option>EPUB</option><option>TXT</option><option>PDF</option><option value="IMAGE">纯图片</option></select></label>
+    <button type="button" class="review-action" id="restart">模拟重启</button>
+    <button type="button" class="review-action" id="fill-config">填入合成配置</button>
+    <button type="button" class="review-action" id="background-toggle">模拟退到后台</button>
+  </header>
+  <div class="review-description"><strong>本页只模拟状态，不发声、不下载、不联网。</strong> 请勿输入真实密钥。方向键移动焦点，Enter 确认，Escape 返回。<span id="review-message" role="status">默认离线中文；系统没有 TTS 服务也不阻断此路径。</span></div>
+  <div class="tv-frame" id="tv-frame" data-size="1080"><main class="tv-screen" id="speech-app" tabindex="-1" aria-label="书房 TV 朗读与语音交互原型"><noscript><p>请启用 JavaScript 查看交互原型。</p></noscript></main></div>
+  <footer class="review-footer"><span>上方状态切换仅供审核，原生产品不显示调试控件。网页刷新后从未下载样例开始。</span><a href="SPEECH-OFFLINE.md">查看中文 dp/sp 实现规格</a></footer>
+</body>
+</html>

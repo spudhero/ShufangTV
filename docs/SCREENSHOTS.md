@@ -1,5 +1,19 @@
 # 原生界面与 Sony 实机图
 
+## 独立离线中文 · 0.5.0-alpha.1
+
+[语音接入验收](SPEECH-INTEGRATION.md)包含实际 Sony 的合成音频与指标。以下为 Robolectric 原生 View 渲染，背景与书籍均为合成内容：
+
+| 状态 | 图像 |
+| --- | --- |
+| 默认离线、语音包未下载 | [1080p](screenshots/speech-offline/speech-offline-missing-1080p.png)、[720p](screenshots/speech-offline/speech-offline-missing-720p.png) |
+| 网络配置、固定底部操作 | [720p](screenshots/speech-offline/speech-network-empty-720p.png) |
+| 可选系统服务、中文待检查 | [1080p](screenshots/speech-offline/speech-system-detected-1080p.png) |
+
+Sony 语音管理：[已就绪面板裁图](screenshots/speech-offline/sony-voice-ready.png)。Sony 实际电视、原创 TXT 指南的离线朗读与高亮：[1920×1080 实机截图](screenshots/speech-offline/sony-guide-speaking.png)。
+
+历史截图中“设备缺少语音引擎”的结论保留为当时状态；当前独立离线中文已在同一 Sony 电视通过 JNI / AudioTrack 实测。
+
 ## 真实封面 · 0.4.0-alpha.3
 
 下图为 Robolectric 原生 View 渲染，使用自行绘制的原创测试封面，经过实际 EPUB 提取 / 缓存 / 首页与书库绑定流程；不是 Sony 实机截图。Sony 上的 16 本真实书籍封面、首页与书库完整画面保存在本地忽略目录，验收汇总见 [封面修复](COVER-VALIDATION-2026-11-06.md)。

@@ -1,0 +1,12 @@
+{
+  "runtime": "1.12.21",
+  "sampleRate": 8000,
+  "initializationMs": 5792,
+  "text": "夜幕降临，书房亮起一盏灯。",
+  "synthesisMs": 1186,
+  "audioSeconds": 2.428875,
+  "rtf": 0.4882919046883845,
+  "rms": 707.6567862071269,
+  "peak": 5017,
+  "fastAudioSeconds": 1.726125
+}

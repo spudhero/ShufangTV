@@ -26,11 +26,13 @@ public final class LocalHttpFixture implements AutoCloseable {
   public static final class Incoming {
     public final String method, path;
     public final Map<String, String> headers;
+    public final byte[] body;
 
-    Incoming(String method, String path, Map<String, String> headers) {
+    Incoming(String method, String path, Map<String, String> headers, byte[] body) {
       this.method = method;
       this.path = path;
       this.headers = headers;
+      this.body = body;
     }
   }
 
@@ -107,9 +109,14 @@ public final class LocalHttpFixture implements AutoCloseable {
       }
       int bodyLength = Integer.parseInt(headers.getOrDefault("content-length", "0"));
       if (bodyLength > 8192) throw new IOException("Oversized fixture request");
-      for (int n = 0; n < bodyLength; n++)
-        if (input.read() == -1) throw new IOException("Short fixture request");
-      Incoming incoming = new Incoming(start[0], start[1], Collections.unmodifiableMap(headers));
+      byte[] body = new byte[bodyLength];
+      for (int n = 0; n < bodyLength; n++) {
+        int value = input.read();
+        if (value == -1) throw new IOException("Short fixture request");
+        body[n] = (byte) value;
+      }
+      Incoming incoming =
+          new Incoming(start[0], start[1], Collections.unmodifiableMap(headers), body);
       requests.add(incoming);
       Reply reply = handler.handle(incoming);
       BufferedOutputStream output = new BufferedOutputStream(socket.getOutputStream());

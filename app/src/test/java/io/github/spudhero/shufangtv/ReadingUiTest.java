@@ -66,6 +66,8 @@ public class ReadingUiTest {
         if (book == guide) {
           assertTrue(text.contains("AZW3"));
           assertTrue(text.contains("默认全屏撑满屏宽"));
+          assertTrue(text.contains("下载离线中文语音包"));
+          assertFalse(text.contains("朗读使用电视的中文语音引擎"));
           assertFalse(text.contains("旧指南"));
         } else assertEquals(userText, text.trim());
         activity.dispatchKeyEvent(

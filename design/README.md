@@ -13,3 +13,7 @@
 新增入口 [ui-review.html](ui-review.html)，与网盘稿共用既有 tokens；可切换 1080p / 720p、语音状态与文本 / PDF / 图片样例。所有书名、正文和状态均为合成内容；网页不连接 TTS，也不渲染用户文件。
 
 [原始细化规范](UI-REFINEMENTS.md)与[最终原生落地差异](NATIVE-ADOPTION.md)分别保留。后者记录真实 PDF 操作、混排图片文本能力、图标资源映射与复核修订。`reading-features.html` 及其 CSS / JS 同步保存，以供本轮入口里的既有书库与书签链接使用。
+
+## 独立中文朗读
+
+入口 [speech-offline.html](speech-offline.html)，规范 [SPEECH-OFFLINE.md](SPEECH-OFFLINE.md)。由 OpenDesign Cloud 生成，Local Codex 根据 Sony 实测校正模型与容量。默认离线、网络主动选用、浏览和选中分离、主操作固定在底部；网页只模拟状态，不下载、不发声、不保存密钥。[原生落地与实测](../docs/SPEECH-INTEGRATION.md)另行记录。

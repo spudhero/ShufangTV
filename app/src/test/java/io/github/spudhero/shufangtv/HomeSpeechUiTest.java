@@ -99,11 +99,18 @@ public class HomeSpeechUiTest {
       View decor = activity.getWindow().getDecorView();
       text(decor, "设置").performClick();
       assertFalse(SpeechSetup.hasEngine(activity));
-      assertNotNull(text(decor, "未检测到语音引擎"));
-      assertNotNull(text(decor, "系统语音设置"));
-      text(decor, "系统语音设置").requestFocus();
-      ReadingUiTest.render(decor, "speech-settings-missing-" + viewport + ".png");
-      assertFullyVisible(text(decor, "系统语音设置"));
+      assertNotNull(text(decor, "离线中文需下载语音包"));
+      text(decor, "管理朗读语音").requestFocus();
+      text(decor, "管理朗读语音").performClick();
+      AlertDialog panel = ShadowAlertDialog.getLatestAlertDialog();
+      View ui = panel.getWindow().getDecorView();
+      ReadingUiTest.renderDialog(decor, "speech-offline-missing-" + viewport + ".png");
+      assertNotNull(text(ui, "离线中文"));
+      assertNotNull(text(ui, "下载语音包"));
+      assertFullyVisible(text(ui, "下载语音包"));
+      assertNull(ShadowTextToSpeech.getLastTextToSpeechInstance());
+      text(ui, "系统语音").performClick();
+      assertNotNull(text(ui, "未检测到系统语音引擎"));
       ResolveInfo engine = new ResolveInfo();
       engine.serviceInfo = new ServiceInfo();
       engine.serviceInfo.packageName = "test.speech";
@@ -114,13 +121,19 @@ public class HomeSpeechUiTest {
               new Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE), engine);
       controller.pause().resume();
       assertTrue(SpeechSetup.hasEngine(activity));
-      assertNotNull(text(decor, "已检测到系统语音引擎"));
-      assertNotNull(text(decor, "开启朗读时检查中文支持；语音数据由系统引擎管理。"));
+      assertNotNull(text(ui, "已检测到系统引擎，开启时检查中文支持"));
       assertNull(ShadowTextToSpeech.getLastTextToSpeechInstance());
       ShadowLooper.idleMainLooper();
-      ReadingUiTest.render(decor, "speech-settings-detected-" + viewport + ".png");
-      assertTrue(text(decor, "系统语音设置").hasFocus());
-      assertFullyVisible(text(decor, "系统语音设置"));
+      ReadingUiTest.renderDialog(decor, "speech-system-detected-" + viewport + ".png");
+      text(ui, "网络语音").performClick();
+      ReadingUiTest.renderDialog(decor, "speech-network-empty-" + viewport + ".png");
+      assertNotNull(text(ui, "网络语音尚未配置"));
+      text(ui, "保存网络配置").performClick();
+      assertTrue(ui.findViewWithTag("speech-azure-key").hasFocus());
+      assertNull(ShadowTextToSpeech.getLastTextToSpeechInstance());
+      panel.dismiss();
+      ShadowLooper.idleMainLooper();
+      assertNotNull(text(activity.getWindow().getDecorView(), "离线中文需下载语音包"));
     }
   }
 
@@ -138,14 +151,14 @@ public class HomeSpeechUiTest {
       }
       text(decor, "阅读菜单").performClick();
       AlertDialog menu = ShadowAlertDialog.getLatestAlertDialog();
-      assertNotNull(text(menu.getWindow().getDecorView(), "未检测到语音引擎"));
+      assertNotNull(text(menu.getWindow().getDecorView(), "离线中文需下载语音包"));
       ReadingUiTest.renderDialog(decor, "reader-speech-missing.png");
       text(menu.getWindow().getDecorView(), "朗读正文").performClick();
       ShadowLooper.idleMainLooper();
       AlertDialog setup = ShadowAlertDialog.getLatestAlertDialog();
       assertNotSame(menu, setup);
-      assertNotNull(text(setup.getWindow().getDecorView(), "需要中文语音引擎"));
-      assertEquals("打开语音设置", setup.getButton(AlertDialog.BUTTON_POSITIVE).getText());
+      assertNotNull(text(setup.getWindow().getDecorView(), "准备朗读语音"));
+      assertEquals("管理朗读语音", setup.getButton(AlertDialog.BUTTON_POSITIVE).getText());
       assertNull(ShadowTextToSpeech.getLastTextToSpeechInstance());
       assertNull(text(decor, "准备语音…"));
     }

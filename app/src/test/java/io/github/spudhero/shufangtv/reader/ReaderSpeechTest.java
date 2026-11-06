@@ -8,6 +8,7 @@ import android.media.AudioManager;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import io.github.spudhero.shufangtv.core.TextNavigator;
+import io.github.spudhero.shufangtv.speech.SystemSpeechEngine;
 import java.util.Locale;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -64,7 +65,7 @@ public class ReaderSpeechTest {
   public void missingChineseDataReportsUnavailableWithoutRequestingFocus() {
     Context context = RuntimeEnvironment.getApplication();
     Events events = new Events();
-    ReaderSpeech speech = new ReaderSpeech(context, 1f, events);
+    ReaderSpeech speech = new ReaderSpeech(context, 1f, events, new SystemSpeechEngine(context));
     ControlledTts tts = (ControlledTts) shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance());
     tts.getOnInitListener().onInit(TextToSpeech.SUCCESS);
     ShadowLooper.idleMainLooper();
@@ -87,7 +88,7 @@ public class ReaderSpeechTest {
     Context context = RuntimeEnvironment.getApplication();
     ShadowTextToSpeech.addLanguageAvailability(Locale.SIMPLIFIED_CHINESE);
     Events events = new Events();
-    ReaderSpeech speech = new ReaderSpeech(context, 1f, events);
+    ReaderSpeech speech = new ReaderSpeech(context, 1f, events, new SystemSpeechEngine(context));
     ControlledTts tts = (ControlledTts) shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance());
     tts.getOnInitListener().onInit(TextToSpeech.SUCCESS);
     ShadowLooper.idleMainLooper();
@@ -133,7 +134,7 @@ public class ReaderSpeechTest {
     Context context = RuntimeEnvironment.getApplication();
     ShadowTextToSpeech.addLanguageAvailability(Locale.SIMPLIFIED_CHINESE);
     Events events = new Events();
-    ReaderSpeech speech = new ReaderSpeech(context, 1f, events);
+    ReaderSpeech speech = new ReaderSpeech(context, 1f, events, new SystemSpeechEngine(context));
     ControlledTts tts = (ControlledTts) shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance());
     speech.close();
     tts.getOnInitListener().onInit(TextToSpeech.SUCCESS);
