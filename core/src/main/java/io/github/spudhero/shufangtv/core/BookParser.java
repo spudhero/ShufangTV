@@ -146,7 +146,7 @@ public final class BookParser {
         bodyBytes += chapter.text.getBytes(StandardCharsets.UTF_8).length;
         if (bodyBytes > textLimit) throw new IOException("书籍正文超过完整导入上限，未导入不完整内容。");
         if (!chapter.text.isEmpty()) chapters.add(chapter);
-        hasText |= hasReadableText(chapter.text);
+        hasText |= hasReadableText(chapter.text) || !chapter.images.isEmpty();
       }
       if (chapters.isEmpty() || !hasText) throw new IOException("这本 EPUB 没有可读取的文字，可能是纯图片书籍。");
       String title = "未命名书籍".equals(book.title) ? fileTitle(file) : book.title;
@@ -260,16 +260,43 @@ public final class BookParser {
     }
     if (heading != null && inlineText(heading.text()).equals(inlineText(title))) heading.remove();
     StringBuilder output = new StringBuilder();
-    appendNodes(body, output);
+    List<Element> imageElements = new ArrayList<>();
+    appendNodes(body, output, imageElements);
     String text = normalizeLines(output.toString());
+    List<BookDocument.Illustration> images = new ArrayList<>();
+    StringBuilder anchored = new StringBuilder();
+    int cursor = 0;
+    for (int i = 0; i < imageElements.size(); i++) {
+      String marker = "\ue000" + i + "\ue001";
+      int at = text.indexOf(marker, cursor);
+      if (at < 0) throw new IOException("图片位置解析失败");
+      anchored.append(text, cursor, at);
+      Element element = imageElements.get(i);
+      String alt = inlineText(element.attr("alt"));
+      String label = "［" + (alt.isEmpty() ? "插图" : "图片：" + alt) + "］";
+      int start = anchored.length();
+      anchored.append(label);
+      String src = element.attr("src"), svg = "";
+      if ("svg".equals(local(element.normalName()))) {
+        Element embedded = element.selectFirst("image");
+        if (embedded != null && element.select("image").size() == 1) {
+          src = embedded.hasAttr("href") ? embedded.attr("href") : embedded.attr("xlink:href");
+        } else svg = element.outerHtml();
+      }
+      // Resource access stays inside the selected book. Data images are decoded with a byte cap.
+      String source =
+          !svg.isEmpty()
+              ? path
+              : src.startsWith("data:image/") ? src : src.isEmpty() ? "" : resolve(path, src);
+      images.add(new BookDocument.Illustration(start, anchored.length(), source, alt, svg));
+      cursor = at + marker.length();
+    }
+    anchored.append(text, cursor, text.length());
+    text = anchored.toString();
     if (text.getBytes(StandardCharsets.UTF_8).length > chapterLimit) {
       throw new IOException("该章节正文超过单章读取上限。");
     }
-    boolean hasImages =
-        body.getAllElements().stream()
-            .anyMatch(
-                e -> "img".equals(local(e.normalName())) || "svg".equals(local(e.normalName())));
-    return new BookDocument.Chapter(title, text, hasImages);
+    return new BookDocument.Chapter(title, text, images);
   }
 
   /**
@@ -495,6 +522,10 @@ public final class BookParser {
   }
 
   private static void appendNodes(Node root, StringBuilder output) {
+    appendNodes(root, output, null);
+  }
+
+  private static void appendNodes(Node root, StringBuilder output, List<Element> images) {
     // Iterative traversal prevents deeply nested but small XHTML from exhausting the Java stack.
     Deque<WalkNode> pending = new ArrayDeque<>();
     pending.push(new WalkNode(root, false));
@@ -502,7 +533,12 @@ public final class BookParser {
       WalkNode current = pending.pop();
       Node node = current.node;
       if (node instanceof TextNode) {
-        output.append(((TextNode) node).getWholeText().replaceAll("[\\t\\r\\n\\f ]+", " "));
+        output.append(
+            ((TextNode) node)
+                .getWholeText()
+                .replace("\ue000", "")
+                .replace("\ue001", "")
+                .replaceAll("[\\t\\r\\n\\f ]+", " "));
         continue;
       }
       if (!(node instanceof Element)) continue;
@@ -516,6 +552,11 @@ public final class BookParser {
       }
       if ("br".equals(tag)) {
         output.append('\n');
+        continue;
+      }
+      if (images != null && ("img".equals(tag) || "svg".equals(tag))) {
+        output.append('\n').append('\ue000').append(images.size()).append('\ue001').append('\n');
+        images.add(element);
         continue;
       }
       if ("img".equals(tag)) {
@@ -634,7 +675,7 @@ public final class BookParser {
   }
 
   /** Resolves an EPUB URL against a ZIP entry; it never resolves to the filesystem or network. */
-  private static String resolve(String baseFile, String href) throws IOException {
+  public static String resolve(String baseFile, String href) throws IOException {
     String ref = trimSpace(href);
     if (external(ref)) throw new IOException("EPUB 资源必须位于书籍压缩包内。");
     int hash = ref.indexOf('#');

@@ -1,5 +1,7 @@
 # 验证记录
 
+当前开发版为 `0.4.0-alpha.1` / 版本码 5：**182 项 JVM / 原生界面测试**（core 44、app 138）通过，lint 0 错误、21 警告，四种 ABI 构建成功；Sony Android 10 上的 2 项设备测试覆盖真实 PDFium 视口及原生 Kindle 解码。插图、漫画、PDF 屏宽阅读和 AZW3/MOBI 的本轮实书结果单列在 [媒体阅读验证](MEDIA-READING-VALIDATION-2026-11-06.md)。下方保留历史版本的原结果和校验值，不作为当前缺口说明。
+
 2026-11-06 主干集成开发版 `0.3.0-alpha.1` 已通过 **173 项测试**（core 38、app 135），lint 0 错误、20 个警告，以及 APK 构建与签名检查。见 [集成验证与设备记录](INTEGRATION-2026-11-06.md) 和 [真实 SMB 补充验证](SMB-DEVICE-VALIDATION-2026-11-06.md)。阅读分支合并前的 164 项检查保留在 [阅读体验验证记录](READING-VALIDATION.md)。
 
 同日 Sony BRAVIA / Android 10 安装和实测完成：WebDAV 加密来源重载、在线 EPUB/TXT/PDF、搜索回跳、收藏、自动翻页和服务关闭后的离线冷启动通过；最终设备 APK 哈希匹配。无 TTS 引擎、系统文档占位组件的降级提示通过，实际声音/外部导出没有通过条件。下方旧版的“仍待实机”仅描述当时状态；当前结论以 [设备记录](INTEGRATION-2026-11-06.md) 为准。

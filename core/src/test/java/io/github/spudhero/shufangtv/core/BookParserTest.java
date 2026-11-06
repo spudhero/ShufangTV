@@ -379,12 +379,16 @@ public class BookParserTest {
   }
 
   @Test
-  public void imageOnlyEpubExplainsItsLimitation() throws Exception {
+  public void imageOnlyEpubRetainsAnAddressableIllustration() throws Exception {
     Map<String, byte[]> entries = singleBook();
     entries.put("OPS/a.xhtml", bytes("<html><body><img src='scan.jpg'/></body></html>"));
-    IOException error =
-        assertThrows(IOException.class, () -> parser.parse(zip("scanned.epub", entries)));
-    assertTrue(error.getMessage().contains("纯图片"));
+    BookDocument result = parser.parse(zip("scanned.epub", entries));
+    assertEquals(1, result.chapters.size());
+    BookDocument.Chapter chapter = result.chapters.get(0);
+    assertEquals(1, chapter.images.size());
+    assertEquals("OPS/scan.jpg", chapter.images.get(0).source);
+    assertEquals(
+        "［插图］", chapter.text.substring(chapter.images.get(0).start, chapter.images.get(0).end));
   }
 
   @Test
@@ -396,6 +400,27 @@ public class BookParserTest {
     String text = parser.readChapter(archive, new EpubBook.SpineItem("一章", "a.xhtml")).text;
     assertTrue(text.indexOf("上文") < text.indexOf("图片：山川示意图"));
     assertTrue(text.indexOf("图片：山川示意图") < text.indexOf("下文"));
+  }
+
+  @Test
+  public void picturesKeepUtf16AnchorsAndResolveSvgWrappersAndEncodedPaths() throws Exception {
+    MemoryArchive archive = new MemoryArchive(new LinkedHashMap<>());
+    archive.entries.put(
+        "OPS/Text/a.xhtml",
+        bytes(
+            "<html><body><p>开头😀</p><img src='../Images/a%20b.jpg' alt='地图'/><p>中间</p><svg"
+                + " xmlns:xlink='http://www.w3.org/1999/xlink'><image"
+                + " xlink:href='../Images/c.png'/></svg><svg viewBox='0 0 20 20'><rect width='20'"
+                + " height='20'/></svg><p>末尾</p></body></html>"));
+    BookDocument.Chapter c =
+        parser.readChapter(archive, new EpubBook.SpineItem("一章", "OPS/Text/a.xhtml"));
+    assertEquals("开头😀\n\n［图片：地图］\n\n中间\n\n［插图］\n\n［插图］\n\n末尾", c.text);
+    assertEquals(3, c.images.size());
+    assertEquals("OPS/Images/a b.jpg", c.images.get(0).source);
+    assertEquals("OPS/Images/c.png", c.images.get(1).source);
+    assertTrue(c.images.get(2).svg.contains("<rect"));
+    for (BookDocument.Illustration image : c.images)
+      assertTrue(c.text.substring(image.start, image.end).startsWith("［"));
   }
 
   @Test

@@ -2,7 +2,7 @@
 
 面向中文家庭书库的原生 Android TV 开源阅读器。深灰背景、暖白文字、琥珀色焦点，为电视和遥控器设计。Android 8.0（API 26）及以上。
 
-**在线阅读与离线阅读是两个独立操作。** 在线打开书籍时按需读取，临时内容留在有上限的内存缓存，不先把书下载到电视。只有主动选择“保存到本地”，才会完整下载离线副本。
+**在线阅读与离线阅读是两个独立操作。** 在线打开按格式读取所需数据，临时内容留在内存，不自动保存离线书籍。EPUB 按章节和图片读取；AZW3/MOBI 需要在内存重建所选文件的压缩记录。只有主动选择“保存到本地”，才会写入完整离线副本。
 
 这是独立编写的新项目，不是原 TVReader 的汉化补丁。UI 延续通过 OpenDesign Cloud / Local Codex 完成的“暗色书房”设计，并以原生 Android View 实现。新增网盘来源、扫码、目录选择与阅读方式面板已按设计稿优化；[设计原型](design/README.md)与[落地说明](docs/UI-DESIGN.md)随源码保存。
 
@@ -13,7 +13,9 @@
 ## 功能
 
 - 中文首页、书库、阅读页、书签、书籍来源与设置；遥控器焦点、方向键与分层返回。
-- EPUB 文本、TXT、PDF；书籍进度、书签、目录跳转、字号、行距与阅读主题。
+- EPUB 图文、纯图片漫画、无 DRM 的 AZW3/MOBI（兼容 AZW/PRC）、TXT 与 PDF；进度、书签、目录跳转和阅读主题。
+- 插图按正文顺序显示，支持 ZIP 内图片、SVG 包图与内嵌图片；普通插图完整适配，连续画页按屏宽阅读，也可手动切换。
+- PDF 默认全屏撑满屏宽，上下滚动；菜单可放大至 125%–300%，左右平移，并恢复 100% 屏宽。
 - 窄 / 中 / 宽居中阅读栏，排版可选全局默认或仅本书；调整后保留文字位置。
 - EPUB 本章 / TXT 当前片段正文搜索、命中高亮、上下条与返回搜索前位置；每书搜索历史。
 - 逻辑书单、置顶、待读 / 在读 / 已读筛选；来源文件保持原位置。
@@ -37,26 +39,27 @@
 
 服务器不支持随机读取、忽略 Range、文件变化或读取失败时会报错，**不会自动退回整本下载**。小书的全部字节可能自然落入一次读取窗口；在线模式仍不会将其保存为离线文件。PDF 的实际请求范围由系统渲染器决定。
 
-EPUB 先读取 ZIP 中央目录，再按 spine 加载当前章节。ZIP 原始数据缓存最多 1 MiB，正文保留最近两章，每项解压上限 8 MiB。TXT 每段最多读取 48 KiB，支持 UTF-8、带 BOM 的 UTF-16、GB18030。离线保存首版上限 128 MiB。
+EPUB 先读取 ZIP 中央目录，再按 spine 加载当前章节。ZIP 原始数据缓存最多 1 MiB，正文保留最近两章，单章上限 8 MiB；图片按需读取，单张输入上限 16 MiB、采样解码最多约 6 百万像素，只保留当前位图。Kindle 所选文件上限 64 MiB、解压正文上限 32 MiB，支持 KF8、旧 MOBI 与目录锚点拆章；不绕过 DRM。PDF 仅绘制当前可见区域，放大不会生成整页巨型位图。TXT 每段最多 48 KiB，支持 UTF-8、带 BOM 的 UTF-16、GB18030。离线保存上限 128 MiB。
 
-在线与离线副本共享章节和文字位置。文本偏移采用 Java UTF-16 单元；TXT 额外保存分段起始字节位置，PDF 保存页索引。
+在线与离线副本共享阅读位置。文本偏移采用 Java UTF-16 单元；TXT 额外保存段首字节，图片保存纵向位置，PDF 保存页索引、缩放与平移位置；旧记录兼容。
 
 ## 使用
 
 1. 在“书籍来源”选择网盘，使用对应手机应用扫码并确认，然后选择书籍文件夹。UC 使用“UC 浏览器”扫码。也可添加 SMB / WebDAV 家庭书库。
-2. 选中 EPUB、TXT 或 PDF，选择“在线打开”。需要离线时另选“保存到本地”。
+2. 选中 EPUB、AZW3、MOBI、TXT 或 PDF，选择“在线打开”。需要离线时另选“保存到本地”。
 3. 正文左右键翻页，确定键打开菜单，下键进入底部操作区，上键返回正文，返回键逐层退出。
 4. “字体与排版”直接调整字号、行距、字体和栏宽；顶端选择全局默认或仅本书。“亮度与纸色”的纸色使用同一范围，显示亮度始终全局。
 5. “收藏正文段落”用上下键选择，确定键保存并写备注；在“我的书签”选择卡片管理和回到原文，“导出收藏”选择格式后保存。
 6. “朗读正文”的语速和停止时间位于“朗读设置”；应用进入后台会暂停，返回后需主动继续。自动翻页与朗读、搜索、选段互斥。
+7. 图片页可在菜单切换“适合整图 / 100% 适合屏宽”。屏宽图片上下移动，左右连续翻阅。PDF 上下滚动，100% 时左右翻页；放大后左右平移，菜单中仍可切换页码。
 
-阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)、[工作区验证](docs/READING-VALIDATION.md)。主干当前开发版为 `0.3.0-alpha.1`；上面的下载页保留已发布的 `0.2.0-alpha.2`。全部现有分支已合入主干，173 项检查通过；Sony BRAVIA 实测在线 EPUB/TXT/PDF、局部搜索、段落收藏、自动翻页及关闭服务后的离线冷启动。真实 Huawei SMB 抽查通过 9 本文字 EPUB 的正文/跳章/翻页与 2 本 PDF 的加载/跳页；漫画图片和 PDF 远距离可读性仍有明确缺口。详见 [集成与实机记录](docs/INTEGRATION-2026-11-06.md)、[SMB 实机结果](docs/SMB-DEVICE-VALIDATION-2026-11-06.md) 和 [项目进度](docs/PROGRESS.md)。
+阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)。主干当前开发版为 `0.4.0-alpha.1`；上面的下载页保留已发布的 `0.2.0-alpha.2`。本轮 182 项 JVM/原生界面测试与 2 项 Sony 设备测试通过，实际 SMB 图文、PDF 与 Kindle 格式验收见 [本轮记录](docs/MEDIA-READING-VALIDATION-2026-11-06.md)。前一阶段的 173 项检查及图片缺失结论保留在 [历史 SMB 记录](docs/SMB-DEVICE-VALIDATION-2026-11-06.md)。
 
 网盘由本应用直接授权和读取，不需要 CloudDrive2 服务或第三方登录中转。会话失效时重新扫码；阿里令牌支持自动续期。原文件能否按需读取取决于网盘权限和 Range 支持，拒绝时会提示，不自动下载整本书。SMB / WebDAV 的局域网 HTTP 仍可用，网盘连接使用 HTTPS。
 
 ## 构建
 
-需要 JDK 17、Android SDK Platform 36 和 Build Tools 36.0.0。
+需要 JDK 17、Android SDK Platform 36、Build Tools 36.0.0、NDK 27.2.12479018 和 CMake 3.22.1。原生库同时构建 armeabi-v7a、arm64-v8a、x86 与 x86_64。
 
 ```sh
 git clone https://github.com/spudhero/ShufangTV.git
@@ -65,20 +68,22 @@ cd ShufangTV
 ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
+设备回归另运行 `:app:assembleDebugAndroidTest`，安装应用与测试 APK 后，执行 `adb shell am instrument -w -e class io.github.spudhero.shufangtv.reader.ReaderDeviceTest io.github.spudhero.shufangtv.test/androidx.test.runner.AndroidJUnitRunner`。覆盖安装使用相同开发密钥；可通过 `-Pshufang.debugKeystore=/path/to/debug.keystore` 指定已有测试密钥。
+
 安装包：`app/build/outputs/apk/debug/app-debug.apk`。这是使用开发签名的测试版本，正式分发需自行配置发布签名。仓库提供 [GitHub Actions 模板](ci/android.yml)，有工作流管理权限时将它放入 `.github/workflows/`，可自动构建并上传 APK、测试报告和原生界面渲染结果。
 
 ## 当前边界
 
-- EPUB 以文本阅读为主，保留图片说明；暂不支持纯图片 EPUB、DRM、MOBI / AZW3、在线 ZIP64。
+- 不支持 DRM、KFX 和在线 ZIP64。图文按原顺序逐屏阅读，不复刻原书全部 CSS 排版；SVG 滤镜及动态图像动画不在当前范围。
 - 无跨设备进度同步、全文 TXT 目录扫描；不绕过网盘的文件权限、会员限制或额外验证。
 - 正文搜索限当前已加载章节 / 片段；PDF 不提供文字搜索、重排、朗读和段落选取。
 - 朗读需要支持中文的系统 TTS 引擎；首版仅前台持续播放。书单为单层、每书一个归属。
 - 本地/USB 与外部导出需有可用的系统文档界面；Sony 上只有占位组件时显示恢复提示，收藏仍保留。远程文件提供方若不能 seek，会明确失败。
 - 四家网盘匿名二维码初始化已核对；真实账号扫码后的目录、会话续期和文件读取仍待验收。协议夹具通过不等于真实账号已通过。
-- Sony Android 10 上的在线 PDF 代理文件描述符、真实 NAS/SMB 按需读取及空闲重连已验证；漫画 EPUB 图片尚不渲染，PDF 整页正文偏小。中文发声、有效文档提供器上的文件交接和物理遥控器长按仍待对应条件验收。
+- Sony Android 10 上的在线 PDF 代理描述符、真实 NAS/SMB 读取及空闲重连已验证。中文发声、有效文档提供器上的文件交接、物理遥控器长按和实际观看距离仍待对应条件验收。
 
 见 [架构与存储规则](docs/ARCHITECTURE.md)、[验证记录](docs/VALIDATION.md)、[阅读行为分析](docs/REFERENCE-BEHAVIOR.md)、[CD2 网盘参考边界](docs/CLOUD-REFERENCE.md)、[第三方依赖](THIRD-PARTY-NOTICES.md)。网盘流程也依据用户授权的本地 NetVplayer 源码核对，公开仓库只记录行为差异和自有实现；不包含该项目源码、参考 APK、反编译源码、凭据、用户书籍或签名密钥。
 
 ## License
 
-[Apache-2.0](LICENSE)。TVReader 和 CloudDrive2 仅用于本地研究功能行为，本仓库不包含其源码、二进制、图标或商标素材。
+应用代码采用 [Apache-2.0](LICENSE)；单独链接的 libmobi 为 LGPL-3.0-or-later，随仓库提供对应源码与重建说明，见 [第三方声明](THIRD-PARTY-NOTICES.md)。TVReader 和 CloudDrive2 仅用于本地研究功能行为，不包含其源码、二进制、图标或商标素材。

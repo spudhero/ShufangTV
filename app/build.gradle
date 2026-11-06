@@ -4,19 +4,33 @@ android {
     namespace 'io.github.spudhero.shufangtv'
     compileSdk 36
     buildToolsVersion '36.0.0'
+    ndkVersion '27.2.12479018'
+    if (rootProject.file('.build-cache/toolchain/android-ndk-r27c').isDirectory()) {
+        ndkPath rootProject.file('.build-cache/toolchain/android-ndk-r27c').absolutePath
+    }
     defaultConfig {
         applicationId 'io.github.spudhero.shufangtv'
         minSdk 26
         targetSdk 36
-        versionCode 4
-        versionName '0.3.0-alpha.1'
-        testInstrumentationRunner 'android.test.InstrumentationTestRunner'
+        versionCode 5
+        versionName '0.4.0-alpha.1'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        ndk { abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64' }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
     buildTypes {
+        debug {
+            def qaKey = providers.gradleProperty('shufang.debugKeystore').orNull
+            if (qaKey != null) {
+                signingConfigs.debug.storeFile = file(qaKey)
+                signingConfigs.debug.storePassword = 'android'
+                signingConfigs.debug.keyAlias = 'androiddebugkey'
+                signingConfigs.debug.keyPassword = 'android'
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -24,6 +38,12 @@ android {
     }
     lint { abortOnError true; disable 'GradleDependency', 'NewerVersionAvailable', 'OldTargetApi' }
     testOptions { unitTests.includeAndroidResources = true }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
     packaging { resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/INDEX.LIST', 'META-INF/versions/**'] }
 }
 
@@ -35,8 +55,11 @@ dependencies {
     implementation 'org.slf4j:slf4j-nop:2.0.16'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.81'
     implementation 'com.google.zxing:core:3.5.3'
+    implementation 'com.caverock:androidsvg-aar:1.4'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'junit:junit:4.13.2'
 }
 
 tasks.withType(Test).configureEach {

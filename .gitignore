@@ -2,6 +2,7 @@
 .build-cache/
 build/
 **/build/
+**/.cxx/
 local.properties
 .idea/
 *.iml

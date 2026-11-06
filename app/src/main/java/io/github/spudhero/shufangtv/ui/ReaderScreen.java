@@ -11,6 +11,8 @@ import android.os.Looper;
 import android.view.*;
 import android.widget.*;
 import io.github.spudhero.shufangtv.core.AutoPagePolicy;
+import io.github.spudhero.shufangtv.core.BookDocument;
+import io.github.spudhero.shufangtv.core.DocumentViewport;
 import io.github.spudhero.shufangtv.core.TextNavigator;
 import io.github.spudhero.shufangtv.data.*;
 import io.github.spudhero.shufangtv.reader.*;
@@ -37,6 +39,8 @@ public final class ReaderScreen extends LinearLayout {
   private boolean active = true, busy, textReady;
   private int generation;
   private Bitmap bitmap;
+  private DocumentViewport pdfViewport;
+  private int loadedChapter = -1;
   private final LinearLayout searchNavigation;
   private TextNavigator.Matches searchMatches;
   private int searchIndex, searchOrigin;
@@ -117,6 +121,7 @@ public final class ReaderScreen extends LinearLayout {
     body.addView(status, new FrameLayout.LayoutParams(-1, -1));
     status.setVisibility(GONE);
     page.onPageReady = this::updateProgress;
+    page.onIllustrationNeeded = this::loadIllustration;
     searchNavigation = horizontal(activity);
     searchNavigation.setVisibility(GONE);
     mountControls(searchNavigation);
@@ -142,10 +147,14 @@ public final class ReaderScreen extends LinearLayout {
     add(this, bottom, -1, 48);
     applyAppearance();
     if (book.format.equals("pdf")) {
+      setPadding(0, 0, 0, 0);
+      for (int i = 0; i < getChildCount(); i++)
+        if (getChildAt(i) != body) getChildAt(i).setVisibility(GONE);
       page.setVisibility(GONE);
       image.setVisibility(VISIBLE);
+      image.setScaleType(ImageView.ScaleType.FIT_XY);
       book.pdfPage = Math.min(book.pdfPage, session.pdfPages() - 1);
-      loadPdf();
+      image.post(this::loadPdf);
     } else {
       image.setVisibility(GONE);
       book.chapter = Math.min(book.chapter, session.chapterCount() - 1);
@@ -159,6 +168,7 @@ public final class ReaderScreen extends LinearLayout {
     setBackgroundColor(theme == 1 ? 0xffe2dac4 : theme == 2 ? 0xff0d110f : 0xff1c201d);
     page.setAppearance(
         style.font, style.line, style.serif, theme == 1 ? 0xff33382f : 0xffe9e7dc, style.width);
+    page.setImageFit(book.imageFit);
     float brightness = prefs.getInt("brightness", 100) / 100f;
     page.setAlpha(brightness);
     image.setAlpha(brightness);
@@ -226,6 +236,8 @@ public final class ReaderScreen extends LinearLayout {
                 () -> {
                   if (!active || id != generation) {
                     if (value instanceof Bitmap) ((Bitmap) value).recycle();
+                    if (value instanceof BookSession.PdfFrame)
+                      ((BookSession.PdfFrame) value).bitmap.recycle();
                     return;
                   }
                   busy = false;
@@ -254,10 +266,12 @@ public final class ReaderScreen extends LinearLayout {
   }
 
   private String safeError(Exception e) {
-    return e.getMessage() == null ? "请检查书库连接后重试。在线模式不会自动下载整本书。" : e.getMessage();
+    return e.getMessage() == null ? "请检查书库连接后重试。在线模式不会自动保存离线副本。" : e.getMessage();
   }
 
   private void loadChapter(boolean end, boolean precedingSegment) {
+    if (loadedChapter >= 0 && loadedChapter != book.chapter) book.imageY = 0;
+    loadedChapter = book.chapter;
     textReady = false;
     final int savedOffset = book.offset;
     task(
@@ -267,10 +281,10 @@ public final class ReaderScreen extends LinearLayout {
                 : session.chapter(book.chapter, book.txtByte),
         c -> {
           clearSearch(false);
-          chapter.setText(c.hasImages ? "本节含图片，暂不支持显示 · " + c.title : c.title);
+          chapter.setText(c.title);
           if (session.segment != null) book.txtByte = session.segment.start;
           textReady = true;
-          page.setContent(c.text, end ? Math.max(0, c.text.length() - 1) : savedOffset);
+          page.setChapter(c, end ? Math.max(0, c.text.length() - 1) : savedOffset, book.imageY);
           if (end) {
             page.setContent(c.text, c.text.length());
             page.previous();
@@ -289,20 +303,82 @@ public final class ReaderScreen extends LinearLayout {
   }
 
   private void loadPdf() {
-    int width = Math.max(960, body.getWidth()), height = Math.max(540, body.getHeight());
+    if (!active) return;
+    int width =
+        body.getWidth() > 0 ? body.getWidth() : getResources().getDisplayMetrics().widthPixels;
+    int height =
+        body.getHeight() > 0 ? body.getHeight() : getResources().getDisplayMetrics().heightPixels;
     task(
-        () -> session.renderPdf(book.pdfPage, Math.min(1920, width), Math.min(1080, height)),
-        b -> {
+        () -> session.renderPdf(book.pdfPage, width, height, book.pdfZoom, book.pdfX, book.pdfY),
+        frame -> {
           Bitmap old = bitmap;
-          bitmap = b;
-          image.setImageBitmap(b);
-          if (old != null && old != b) old.recycle();
+          bitmap = frame.bitmap;
+          pdfViewport = frame.viewport;
+          book.pdfX = pdfViewport.x();
+          book.pdfY = pdfViewport.y();
+          image.setImageBitmap(bitmap);
+          if (old != null && old != bitmap) old.recycle();
           chapter.setText("PDF · 第 " + (book.pdfPage + 1) + " 页");
           updateProgress();
           surface().requestFocus();
           save();
         },
         this::loadPdf);
+  }
+
+  private void loadIllustration(BookDocument.Illustration ref) {
+    io.submit(
+        () -> {
+          Bitmap value = null;
+          String error = null;
+          try {
+            value = session.illustration(ref);
+          } catch (Exception e) {
+            error = safeError(e);
+          }
+          final Bitmap result = value;
+          final String failure = error;
+          activity.runOnUiThread(
+              () -> {
+                if (!active) {
+                  if (result != null) result.recycle();
+                  return;
+                }
+                page.illustrationReady(ref, result, failure);
+              });
+        });
+  }
+
+  private void scrollPdf(int direction) {
+    if (busy || pdfViewport == null) return;
+    pauseAutoForMovement();
+    float y = pdfViewport.movedY(direction * pdfViewport.height * .8f);
+    if (Math.abs(y - book.pdfY) > .00001f) {
+      book.pdfY = y;
+      loadPdf();
+    } else {
+      int next = book.pdfPage + direction;
+      if (next >= 0 && next < session.pdfPages()) {
+        book.pdfPage = next;
+        book.pdfY = direction > 0 ? 0 : 1;
+        loadPdf();
+      }
+    }
+  }
+
+  private void panPdf(int direction) {
+    if (busy || pdfViewport == null) return;
+    pauseAutoForMovement();
+    book.pdfX = pdfViewport.movedX(direction * pdfViewport.width * .6f);
+    loadPdf();
+  }
+
+  private void pauseAutoForMovement() {
+    if (autoEnabled) {
+      autoPaused = true;
+      scheduleAuto();
+      updateAutoLabel();
+    }
   }
 
   public View surface() {
@@ -342,8 +418,25 @@ public final class ReaderScreen extends LinearLayout {
       return key == KeyEvent.KEYCODE_DPAD_CENTER
           || key == KeyEvent.KEYCODE_ENTER
           || key == KeyEvent.KEYCODE_DPAD_LEFT
-          || key == KeyEvent.KEYCODE_DPAD_RIGHT;
+          || key == KeyEvent.KEYCODE_DPAD_RIGHT
+          || key == KeyEvent.KEYCODE_DPAD_UP
+          || key == KeyEvent.KEYCODE_DPAD_DOWN;
     if (surface().hasFocus()) {
+      if (book.format.equals("pdf")) {
+        if (key == KeyEvent.KEYCODE_DPAD_DOWN || key == KeyEvent.KEYCODE_DPAD_UP) {
+          scrollPdf(key == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1);
+          return true;
+        }
+        if (book.pdfZoom > 1
+            && (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+          panPdf(key == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
+          return true;
+        }
+      } else if (page.showingImage()
+          && (key == KeyEvent.KEYCODE_DPAD_DOWN || key == KeyEvent.KEYCODE_DPAD_UP)) {
+        turn(key == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1);
+        return true;
+      }
       if (selection != null) {
         if (key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN) {
           selectParagraph(key == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1);
@@ -369,6 +462,7 @@ public final class ReaderScreen extends LinearLayout {
       if (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER) {
         if (event.getRepeatCount() == 0) {
           if (autoEnabled) toggleAuto();
+          else if (!book.format.equals("pdf") && page.imageFailed()) page.retryIllustration();
           else menu();
         }
         return true;
@@ -408,9 +502,18 @@ public final class ReaderScreen extends LinearLayout {
     stopSpeech();
     stopSelection();
     if (book.format.equals("pdf")) {
+      if (automatic && pdfViewport != null) {
+        float y = pdfViewport.movedY(pdfViewport.height * .8f);
+        if (y > book.pdfY + .00001f) {
+          book.pdfY = y;
+          loadPdf();
+          return;
+        }
+      }
       int next = Math.max(0, Math.min(session.pdfPages() - 1, book.pdfPage + delta));
       if (next != book.pdfPage) {
         book.pdfPage = next;
+        book.pdfX = book.pdfY = 0;
         loadPdf();
       } else {
         if (automatic) stopAuto();
@@ -451,11 +554,21 @@ public final class ReaderScreen extends LinearLayout {
 
   private void updateProgress() {
     if (book.format.equals("pdf")) {
-      progress.setText((book.pdfPage + 1) + " / " + session.pdfPages());
+      String position =
+          (book.pdfPage + 1)
+              + " / "
+              + session.pdfPages()
+              + " · "
+              + Math.round(book.pdfZoom * 100)
+              + "%";
+      progress.setText(position);
+      image.setContentDescription(
+          "PDF 正文 " + position + "，上下滚动，左右" + (book.pdfZoom > 1 ? "平移" : "翻页") + "，确定打开阅读菜单");
       return;
     }
     if (!textReady) return;
     book.offset = page.offset();
+    book.imageY = page.imageY();
     if (session.epub != null)
       progress.setText(
           "第 "
@@ -512,8 +625,12 @@ public final class ReaderScreen extends LinearLayout {
     ReadingStyle style = ReadingStyle.effective(book, prefs);
     View paper =
         tool(dialog, "亮度与纸色", new String[] {"暗色书房", "暖纸色", "墨黑"}[style.paper], this::paperMenu);
-    if (book.format.equals("pdf")) ReadingPanel.row(content, paper);
-    else
+    if (book.format.equals("pdf")) {
+      ReadingPanel.row(
+          content,
+          tool(dialog, "缩放与翻页", Math.round(book.pdfZoom * 100) + "% · 上下滚动查看", this::pdfTools),
+          paper);
+    } else
       ReadingPanel.row(
           content,
           tool(
@@ -522,8 +639,50 @@ public final class ReaderScreen extends LinearLayout {
               style.font + " 号 · " + (book.readingStyle == null ? "全局默认" : "仅本书"),
               this::fontMenu),
           paper);
+    if (!book.format.equals("pdf") && page.showingImage())
+      ReadingPanel.row(
+          content,
+          tool(
+              dialog,
+              "图片显示",
+              new String[] {"自动适配", "适合整图", "100% · 适合屏宽"}[book.imageFit],
+              this::imageTools));
     dialog.show();
     content.getChildAt(2).requestFocus();
+  }
+
+  private void pdfTools() {
+    String[] labels = {"100% · 适合屏宽", "125%", "150%", "200%", "300%", "上一页", "下一页"};
+    float[] zooms = {1, 1.25f, 1.5f, 2, 3};
+    new ReaderDialog(activity)
+        .setTitle("PDF 缩放与翻页")
+        .setItems(
+            labels,
+            (d, which) -> {
+              if (which >= 5) {
+                turn(which == 5 ? -1 : 1);
+                return;
+              }
+              book.pdfZoom = zooms[which];
+              book.pdfX = 0;
+              loadPdf();
+            })
+        .setNegativeButton("返回阅读", null)
+        .show();
+  }
+
+  private void imageTools() {
+    new ReaderDialog(activity)
+        .setTitle("图片显示")
+        .setItems(
+            new String[] {"自动适配", "适合整图", "100% · 适合屏宽"},
+            (d, which) -> {
+              book.imageFit = which;
+              page.setImageFit(which);
+              save();
+            })
+        .setNegativeButton("返回阅读", null)
+        .show();
   }
 
   private View tool(AlertDialog dialog, String label, String detail, Runnable action) {
@@ -1178,6 +1337,7 @@ public final class ReaderScreen extends LinearLayout {
                   int p = Integer.parseInt(input.getText().toString());
                   if (p < 1 || p > session.pdfPages()) throw new NumberFormatException();
                   book.pdfPage = p - 1;
+                  book.pdfX = book.pdfY = 0;
                   loadPdf();
                 } catch (NumberFormatException e) {
                   Toast.makeText(activity, "请输入有效页码", Toast.LENGTH_SHORT).show();
@@ -1416,7 +1576,10 @@ public final class ReaderScreen extends LinearLayout {
       book.readState = "reading";
     book.lastRead = System.currentTimeMillis();
     book.lastMode = session.online ? "online" : "offline";
-    if (textReady && !book.format.equals("pdf")) book.offset = page.offset();
+    if (textReady && !book.format.equals("pdf")) {
+      book.offset = page.offset();
+      book.imageY = page.imageY();
+    }
     try {
       library.save();
     } catch (IOException e) {
@@ -1441,6 +1604,7 @@ public final class ReaderScreen extends LinearLayout {
           }
         });
     image.setImageDrawable(null);
+    page.releaseIllustration();
     if (bitmap != null) {
       bitmap.recycle();
       bitmap = null;

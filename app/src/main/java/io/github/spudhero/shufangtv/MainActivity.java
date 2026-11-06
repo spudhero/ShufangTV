@@ -538,7 +538,10 @@ public final class MainActivity extends Activity {
     String previous = route.equals("reader") ? returnRoute : route;
     job(
         online ? "正在在线打开" : "正在打开本地书籍",
-        () -> BookSession.open(this, book, online, library, sources),
+        () -> {
+          if (!online && isBundledGuide(book)) writeGuide(book);
+          return BookSession.open(this, book, online, library, sources);
+        },
         session -> {
           if (!session.title.isEmpty()) book.title = session.title;
           if (!session.author.isEmpty()) book.author = session.author;
@@ -666,6 +669,10 @@ public final class MainActivity extends Activity {
                 book.chapter = mark.chapter;
                 book.offset = mark.offset;
                 book.pdfPage = mark.pdfPage;
+                book.pdfX = mark.pdfX;
+                book.pdfY = mark.pdfY;
+                book.pdfZoom = mark.pdfZoom;
+                book.imageY = mark.imageY;
                 book.txtByte = mark.txtByte;
                 openBook(book, mark.mode.equals("online") && book.hasOnline(), mark);
               } else if (i == 1) NoteEditor.edit(this, library, mark, this::showBookmarks);
@@ -1538,7 +1545,7 @@ public final class MainActivity extends Activity {
     gap(pageHeader, 12);
     List<RemoteEntry> sorted = new ArrayList<>(entries);
     sorted.sort(Comparator.comparing((RemoteEntry e) -> !e.directory).thenComparing(e -> e.name));
-    add(pageHeader, SourceUi.section(this, "书籍与文件夹", "EPUB · TXT · PDF"), -1, 28);
+    add(pageHeader, SourceUi.section(this, "书籍与文件夹", "EPUB · AZW3 · MOBI · TXT · PDF"), -1, 28);
     int count = 0;
     View firstEntry = null;
     for (RemoteEntry entry : sorted) {
@@ -1579,7 +1586,7 @@ public final class MainActivity extends Activity {
     if (count == 0) {
       gap(body, 30);
       add(body, heading(this, "这个目录还没有可读的书", 21), -1, 40);
-      add(body, text(this, "当前支持 EPUB、TXT 和 PDF。", 13, MUTED), -1, 34);
+      add(body, text(this, "支持 EPUB、AZW3、MOBI、AZW、PRC、TXT 和 PDF。", 13, MUTED), -1, 34);
     }
     focus(firstEntry == null ? refresh : firstEntry);
   }
@@ -1802,7 +1809,7 @@ public final class MainActivity extends Activity {
       return;
     }
     if (!BookRecord.supported(name)) {
-      message("首版支持 EPUB、TXT 和 PDF 文件。");
+      message("支持 EPUB、AZW3、MOBI、AZW、PRC、TXT 和 PDF 文件。");
       return;
     }
     try {
@@ -2006,7 +2013,7 @@ public final class MainActivity extends Activity {
                         + appVersion()
                         + "（测试版）\n"
                         + "独立编写的 Android TV 开源阅读器\nApache-2.0\ngithub.com/spudhero/ShufangTV\n"
-                        + "支持 EPUB 文本、TXT、PDF；阿里、百度、夸克和 UC 网盘扫码直连。")));
+                        + "支持 EPUB 图文、AZW3、MOBI、TXT、PDF；阿里、百度、夸克和 UC 网盘扫码直连。")));
     View restore = root.findViewWithTag(anchor);
     focus(restore != null ? restore : root.findViewWithTag("settings-font-less"));
   }
@@ -2030,52 +2037,66 @@ public final class MainActivity extends Activity {
     }
   }
 
+  private static boolean isBundledGuide(BookRecord book) {
+    return book.title.equals("书房使用指南")
+        && book.author.equals("书房 TV")
+        && book.format.equals("txt")
+        && book.sourceId.isEmpty()
+        && book.documentUri.isEmpty()
+        && book.offlineFile.equals(book.id + ".txt");
+  }
+
   private void openGuide() {
-    for (BookRecord b : library.books)
-      if (b.title.equals("书房使用指南")) {
-        openBook(b, false);
-        return;
-      }
-    BookRecord b = new BookRecord();
+    BookRecord existingGuide =
+        library.books.stream().filter(MainActivity::isBundledGuide).findFirst().orElse(null);
+    BookRecord b = existingGuide == null ? new BookRecord() : existingGuide;
     b.title = "书房使用指南";
     b.author = "书房 TV";
     b.format = "txt";
     b.offlineFile = b.id + ".txt";
-    String guide =
-        "欢迎来到书房 TV\n\n"
-            + "一卷在手，片刻清宁。\n\n"
-            + "书房 TV 是为客厅电视和遥控器编写的中文阅读器。你可以连接家庭书库在线读，也可以明确选择保存到本地后离线读。\n\n"
-            + "在线阅读\n\n"
-            + "在书籍来源中选择网盘，用手机扫码确认登录，再选择书籍文件夹。也可以添加 SMB 或 WebDAV 家庭书库。选中一本 EPUB、TXT 或"
-            + " PDF，再选择在线打开。在线模式按需读取文件，临时数据保存在内存，不下载整本书。服务器必须支持文件随机读取。\n\n"
-            + "离线阅读\n\n"
-            + "在同一个书籍菜单中选择保存到本地，确认大小与空间后再下载。电视本地和 U 盘中的文件可通过系统文件选择器直接读取，不会额外复制。\n\n"
-            + "遥控器操作\n\n"
-            + "左右键翻页；确定键打开目录、书签和排版菜单。下键进入底部操作区，上键回到正文。返回键逐层返回。\n\n"
-            + "阅读位置\n\n"
-            + "书房按章节和文字位置保存进度，改变字号、行距后继续读。在线与离线副本共享同一个阅读位置。\n\n"
-            + "排版与正文搜索\n\n"
-            + "阅读菜单可设置窄、中、宽栏，以及全局默认或仅本书排版。正文搜索只检索当前章节或片段；退出搜索可回到原位置。\n\n"
-            + "朗读、收藏与自动翻页\n\n"
-            + "朗读使用电视的中文语音引擎，离开应用会暂停。收藏正文时用上下键选段、确定键添加备注；我的书签可管理和导出。自动翻页关菜单后恢复，手动暂停或翻页后需主动继续。\n\n"
-            + "整理书库\n\n"
-            + "书籍菜单可置顶、加入书单并标为待读、在读或已读；这些操作不移动来源文件。\n\n"
-            + "开源与边界\n\n"
-            + "所有应用源码在 github.com/spudhero/ShufangTV。首版不支持带 DRM 的电子书和纯图片 EPUB；PDF"
-            + " 以页面显示。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
     job(
         "正在打开指南",
         () -> {
-          try (OutputStream out = new FileOutputStream(library.file(b))) {
-            out.write(guide.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-          }
+          writeGuide(b);
           return b;
         },
         value -> {
-          library.books.add(b);
+          if (existingGuide == null) library.books.add(b);
           save();
           openBook(b, false);
         });
+  }
+
+  private void writeGuide(BookRecord book) throws IOException {
+    try (OutputStream out = new FileOutputStream(library.file(book))) {
+      out.write(guideContents().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+  }
+
+  private static String guideContents() {
+    return "欢迎来到书房 TV\n\n"
+        + "一卷在手，片刻清宁。\n\n"
+        + "书房 TV 是为客厅电视和遥控器编写的中文阅读器。你可以连接家庭书库在线读，也可以明确选择保存到本地后离线读。\n\n"
+        + "在线阅读\n\n"
+        + "在书籍来源中选择网盘，用手机扫码确认登录，再选择书籍文件夹。也可以添加 SMB 或 WebDAV 家庭书库。选中一本 EPUB、AZW3、MOBI、TXT 或"
+        + " PDF，再选择在线打开。在线模式按需读取文件，临时数据保存在内存，不自动保存离线副本。EPUB 按章节和图片读取；Kindle"
+        + " 格式需重建所选文件的压缩记录。服务器必须支持文件随机读取。\n\n"
+        + "离线阅读\n\n"
+        + "在同一个书籍菜单中选择保存到本地，确认大小与空间后再下载。电视本地和 U 盘中的文件可通过系统文件选择器直接读取，不会额外复制。\n\n"
+        + "遥控器操作\n\n"
+        + "左右键翻页；确定键打开目录、书签和排版菜单。下键进入底部操作区，上键回到正文。返回键逐层返回。\n\n"
+        + "阅读位置\n\n"
+        + "书房按章节和文字位置保存进度，改变字号、行距后继续读。在线与离线副本共享同一个阅读位置。\n\n"
+        + "排版与正文搜索\n\n"
+        + "阅读菜单可设置窄、中、宽栏，以及全局默认或仅本书排版。正文搜索只检索当前章节或片段；退出搜索可回到原位置。\n\n"
+        + "朗读、收藏与自动翻页\n\n"
+        + "朗读使用电视的中文语音引擎，离开应用会暂停。收藏正文时用上下键选段、确定键添加备注；我的书签可管理和导出。自动翻页关菜单后恢复，手动暂停或翻页后需主动继续。\n\n"
+        + "整理书库\n\n"
+        + "书籍菜单可置顶、加入书单并标为待读、在读或已读；这些操作不移动来源文件。\n\n"
+        + "开源与边界\n\n"
+        + "所有应用源码在 github.com/spudhero/ShufangTV。支持纯图片 EPUB、图文混排及无 DRM 的 AZW3/MOBI；PDF"
+        + " 默认全屏撑满屏宽，上下滚动；确定打开菜单可缩放并恢复 100%，放大后左右平移。带 DRM"
+        + " 的书籍无法读取。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
   }
 
   private <T> void job(String title, Callable<T> work, Consumer<T> done) {

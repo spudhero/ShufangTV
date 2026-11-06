@@ -29,9 +29,64 @@ import org.robolectric.util.ReflectionHelpers;
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ReadingUiTest {
   @Test
-  public void
-      imageAndMixedChaptersExplainTheLimitationWithoutChangingTextAnchorsOrBlockingPlainText()
-          throws Exception {
+  public void bundledGuideRefreshesOnOpenWithoutChangingSameNameUserBook() throws Exception {
+    LibraryStore library = new LibraryStore(RuntimeEnvironment.getApplication());
+    BookRecord guide = new BookRecord(), userBook = new BookRecord();
+    for (BookRecord book : new BookRecord[] {guide, userBook}) {
+      book.title = "书房使用指南";
+      book.format = "txt";
+      book.offlineFile = book.id + ".txt";
+      library.books.add(book);
+    }
+    guide.author = "书房 TV";
+    userBook.author = "用户";
+    java.nio.file.Files.write(
+        library.file(guide).toPath(),
+        "旧指南：图片不支持。".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    String userText = "用户保存的同名书籍正文。";
+    java.nio.file.Files.write(
+        library.file(userBook).toPath(),
+        userText.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    library.save();
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      View decor = activity.getWindow().getDecorView();
+      findText(decor, "我的书库").performClick();
+      java.util.concurrent.ExecutorService io = ReflectionHelpers.getField(activity, "io");
+      for (BookRecord book : new BookRecord[] {guide, userBook}) {
+        decor.findViewWithTag("book-" + book.id).performClick();
+        choose("离线打开");
+        for (int i = 0; i < 4; i++) {
+          io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+          ShadowLooper.idleMainLooper();
+        }
+        String text =
+            find(decor, io.github.spudhero.shufangtv.reader.PagedTextView.class).content();
+        if (book == guide) {
+          assertTrue(text.contains("AZW3"));
+          assertTrue(text.contains("默认全屏撑满屏宽"));
+          assertFalse(text.contains("旧指南"));
+        } else assertEquals(userText, text.trim());
+        activity.dispatchKeyEvent(
+            new android.view.KeyEvent(
+                android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK));
+      }
+      assertEquals(
+          userText,
+          new String(
+              java.nio.file.Files.readAllBytes(library.file(userBook).toPath()),
+              java.nio.charset.StandardCharsets.UTF_8));
+      assertTrue(
+          new String(
+                  java.nio.file.Files.readAllBytes(library.file(guide).toPath()),
+                  java.nio.charset.StandardCharsets.UTF_8)
+              .contains("AZW3"));
+    }
+  }
+
+  @Test
+  public void imageAndMixedChaptersRenderIllustrationsAndKeepTextAnchors() throws Exception {
     LibraryStore library = new LibraryStore(RuntimeEnvironment.getApplication());
     BookRecord book = new BookRecord();
     book.title = "合成图片与文字章节";
@@ -60,6 +115,12 @@ public class ReadingUiTest {
         zip.write(entry.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         zip.closeEntry();
       }
+      zip.putNextEntry(new java.util.zip.ZipEntry("page.jpg"));
+      Bitmap fixture = Bitmap.createBitmap(640, 120, Bitmap.Config.ARGB_8888);
+      fixture.eraseColor(0xffb03020);
+      fixture.compress(Bitmap.CompressFormat.PNG, 100, zip);
+      fixture.recycle();
+      zip.closeEntry();
     }
     library.books.add(book);
     library.save();
@@ -75,26 +136,43 @@ public class ReadingUiTest {
         io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
         ShadowLooper.idleMainLooper();
       }
-      render(decor, "reader-image-limitation.png");
-      assertNotNull(findText(decor, "本节含图片，暂不支持显示 · 图片章节"));
+      render(decor, "reader-image-rendered.png");
+      io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+      ShadowLooper.idleMainLooper();
+      assertNotNull(findText(decor, "图片章节"));
       io.github.spudhero.shufangtv.reader.PagedTextView page =
           find(decor, io.github.spudhero.shufangtv.reader.PagedTextView.class);
       assertEquals("［图片：扫描页］", page.content().trim());
       assertEquals(0, page.offset());
+      assertTrue(page.showingImage());
+      assertFalse(page.imageFailed());
+      Bitmap drawn =
+          Bitmap.createBitmap(page.getWidth(), page.getHeight(), Bitmap.Config.ARGB_8888);
+      page.draw(new Canvas(drawn));
+      assertEquals(0xffb03020, drawn.getPixel(page.getWidth() / 2, page.getHeight() / 2));
+      drawn.recycle();
       findText(decor, "下一页 〉").performClick();
       for (int i = 0; i < 4; i++) {
         io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
         ShadowLooper.idleMainLooper();
       }
-      render(decor, "reader-mixed-image-limitation.png");
-      assertNotNull(findText(decor, "本节含图片，暂不支持显示 · 图文混排"));
+      render(decor, "reader-mixed-image-rendered.png");
+      assertNotNull(findText(decor, "图文混排"));
+      assertTrue(page.showingImage());
       assertTrue(page.content().contains("这是可以阅读的合成正文。"));
       findText(decor, "下一页 〉").performClick();
       for (int i = 0; i < 4; i++) {
         io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
         ShadowLooper.idleMainLooper();
       }
-      render(decor, "reader-after-image-limitation.png");
+      assertFalse(page.showingImage());
+      assertTrue(page.offset() > 0);
+      findText(decor, "下一页 〉").performClick();
+      for (int i = 0; i < 4; i++) {
+        io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        ShadowLooper.idleMainLooper();
+      }
+      render(decor, "reader-after-images.png");
       assertNull(findText(decor, "本节含图片，暂不支持显示 · 图文混排"));
       assertNotNull(findText(decor, "正文"));
       assertTrue(page.content().contains("不含图片的合成正文。"));

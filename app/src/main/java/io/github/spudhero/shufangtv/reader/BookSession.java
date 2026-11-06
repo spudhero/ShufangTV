@@ -55,15 +55,7 @@ public final class BookSession implements AutoCloseable {
                     ? new RemoteZipArchive(new DocumentRemoteFile(context, record.documentUri))
                     : new LocalArchive(library.file(record));
         remote = null;
-        session.epub = session.parser.inspect(session.archive);
-        session.title = session.epub.title;
-        session.author = session.epub.author;
-        // Covers are optional decoration; open only the selected book's cover.
-        try {
-          session.cover = session.parser.readCover(session.archive, session.epub);
-        } catch (IOException ignored) {
-          session.cover = null;
-        }
+        session.readMetadata();
       } else if (record.format.equals("txt")) {
         session.text =
             new TextSegments(
@@ -73,11 +65,11 @@ public final class BookSession implements AutoCloseable {
                         ? new DocumentRemoteFile(context, record.documentUri)
                         : new FileRemoteFile(library.file(record)));
         remote = null;
-      } else if (record.format.equals("pdf")) {
+      } else if (record.format.equals("pdf") || isKindle(record.format)) {
         ParcelFileDescriptor descriptor;
         if (online) {
           RemoteFile file = remote;
-          session.proxyThread = new HandlerThread("pdf-network");
+          session.proxyThread = new HandlerThread("document-network");
           session.proxyThread.start();
           StorageManager manager = context.getSystemService(StorageManager.class);
           descriptor =
@@ -101,7 +93,7 @@ public final class BookSession implements AutoCloseable {
                         }
                         return got;
                       } catch (IOException e) {
-                        throw new ErrnoException("在线 PDF 读取中断", OsConstants.EIO, e);
+                        throw new ErrnoException("在线书籍读取中断", OsConstants.EIO, e);
                       }
                     }
 
@@ -123,9 +115,14 @@ public final class BookSession implements AutoCloseable {
                       .openFileDescriptor(android.net.Uri.parse(record.documentUri), "r")
                   : ParcelFileDescriptor.open(
                       library.file(record), ParcelFileDescriptor.MODE_READ_ONLY);
-        if (descriptor == null) throw new IOException("无法打开 PDF 文件，请重新选择文件");
+        if (descriptor == null) throw new IOException("无法打开书籍文件，请重新选择文件");
         try {
-          session.pdf = new PdfRenderer(descriptor);
+          if (record.format.equals("pdf")) session.pdf = new PdfRenderer(descriptor);
+          else {
+            session.archive = new MobiArchive(descriptor.getFd(), descriptor.getStatSize());
+            descriptor.close();
+            session.readMetadata();
+          }
         } catch (Exception e) {
           descriptor.close();
           throw e;
@@ -142,6 +139,27 @@ public final class BookSession implements AutoCloseable {
       throw e instanceof IOException
           ? (IOException) e
           : new IOException("无法打开书籍：" + e.getMessage(), e);
+    }
+  }
+
+  public static boolean isKindle(String format) {
+    return format.equals("mobi")
+        || format.equals("azw3")
+        || format.equals("azw")
+        || format.equals("prc");
+  }
+
+  private void readMetadata() throws IOException {
+    epub =
+        archive instanceof MobiArchive
+            ? ((MobiArchive) archive).inspect(parser)
+            : parser.inspect(archive);
+    title = epub.title;
+    author = epub.author;
+    try {
+      cover = parser.readCover(archive, epub);
+    } catch (IOException ignored) {
+      cover = null;
     }
   }
 
@@ -183,17 +201,37 @@ public final class BookSession implements AutoCloseable {
     return pdf == null ? 0 : pdf.getPageCount();
   }
 
-  public Bitmap renderPdf(int page, int width, int height) throws IOException {
+  public Bitmap illustration(BookDocument.Illustration ref) throws IOException {
+    return IllustrationDecoder.read(archive, ref);
+  }
+
+  public static final class PdfFrame {
+    public final Bitmap bitmap;
+    public final DocumentViewport viewport;
+
+    PdfFrame(Bitmap bitmap, DocumentViewport viewport) {
+      this.bitmap = bitmap;
+      this.viewport = viewport;
+    }
+  }
+
+  public PdfFrame renderPdf(int page, int width, int height, float zoom, float x, float y)
+      throws IOException {
     try (PdfRenderer.Page p = pdf.openPage(page)) {
-      float ratio = Math.min((float) width / p.getWidth(), (float) height / p.getHeight());
-      Bitmap bitmap =
-          Bitmap.createBitmap(
-              Math.max(1, (int) (p.getWidth() * ratio)),
-              Math.max(1, (int) (p.getHeight() * ratio)),
-              Bitmap.Config.ARGB_8888);
+      DocumentViewport viewport =
+          new DocumentViewport(p.getWidth(), p.getHeight(), width, height, zoom, x, y);
+      Bitmap bitmap = Bitmap.createBitmap(viewport.width, viewport.height, Bitmap.Config.ARGB_8888);
       bitmap.eraseColor(Color.WHITE);
-      p.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-      return bitmap;
+      Matrix matrix = new Matrix();
+      matrix.setScale(viewport.scale, viewport.scale);
+      matrix.postTranslate(-viewport.left(), -viewport.top());
+      try {
+        p.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+        return new PdfFrame(bitmap, viewport);
+      } catch (Exception e) {
+        bitmap.recycle();
+        throw e;
+      }
     } catch (Exception e) {
       throw new IOException("PDF 页面读取失败，请检查连接后重试", e);
     }

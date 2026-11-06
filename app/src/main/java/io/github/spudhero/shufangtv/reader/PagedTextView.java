@@ -6,7 +6,12 @@ import android.text.*;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.LeadingMarginSpan;
 import android.view.View;
+import io.github.spudhero.shufangtv.core.BookDocument;
+import io.github.spudhero.shufangtv.core.DocumentViewport;
 import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
 
 /** Lays out at most 8192 characters; a large chapter does not allocate all pages. */
 public final class PagedTextView extends View {
@@ -21,6 +26,101 @@ public final class PagedTextView extends View {
   private int highlightStart = -1, highlightEnd = -1;
   private final Map<Integer, Integer> previous = new HashMap<>();
   public Runnable onPageReady;
+  public Consumer<BookDocument.Illustration> onIllustrationNeeded;
+  private List<BookDocument.Illustration> illustrations = Collections.emptyList();
+  private BookDocument.Illustration currentImage;
+  private Bitmap illustration;
+  private String imageError;
+  private boolean imageRequested;
+  private float imageY;
+  private int imageFit;
+
+  public void setImageFit(int mode) {
+    if (imageFit == mode) return;
+    imageFit = Math.max(0, Math.min(2, mode));
+    imageY = 0;
+    reflow();
+  }
+
+  public boolean fitsWholeImage() {
+    return imageFit == 1 || (imageFit == 0 && illustrations.size() < 4);
+  }
+
+  public void setChapter(BookDocument.Chapter chapter, int position, float imageY) {
+    releaseIllustration();
+    illustrations = Collections.emptyList();
+    setContent(chapter.text, position);
+    illustrations = chapter.images;
+    reflow();
+    this.imageY = imageY;
+    invalidate();
+  }
+
+  public boolean showingImage() {
+    return currentImage != null;
+  }
+
+  public float imageY() {
+    return showingImage() && !fitsWholeImage()
+        ? illustration == null ? imageY : imageViewport().y()
+        : 0;
+  }
+
+  public boolean imageFailed() {
+    return imageError != null;
+  }
+
+  public BookDocument.Illustration currentImage() {
+    return currentImage;
+  }
+
+  public void illustrationReady(BookDocument.Illustration ref, Bitmap value, String error) {
+    if (ref != currentImage) {
+      if (value != null) value.recycle();
+      return;
+    }
+    if (illustration != null && illustration != value) illustration.recycle();
+    illustration = value;
+    imageError = error;
+    reflow();
+  }
+
+  public void retryIllustration() {
+    imageRequested = false;
+    imageError = null;
+    reflow();
+  }
+
+  public void releaseIllustration() {
+    if (illustration != null) illustration.recycle();
+    illustration = null;
+    currentImage = null;
+    imageError = null;
+    imageRequested = false;
+    imageY = 0;
+  }
+
+  public boolean scrollImage(int direction) {
+    if (illustration == null || fitsWholeImage()) return false;
+    DocumentViewport viewport = imageViewport();
+    float nextY = viewport.movedY(direction * getHeight() * .8f);
+    if (Math.abs(nextY - viewport.y()) < .00001f) return false;
+    imageY = nextY;
+    invalidate();
+    if (onPageReady != null) onPageReady.run();
+    return true;
+  }
+
+  private DocumentViewport imageViewport() {
+    return new DocumentViewport(
+        illustration.getWidth(),
+        illustration.getHeight(),
+        Math.max(1, getWidth()),
+        Math.max(1, getHeight()),
+        1,
+        0,
+        imageY);
+  }
 
   public PagedTextView(Context c) {
     super(c);
@@ -33,6 +133,7 @@ public final class PagedTextView extends View {
     if (!text.equals(value)) {
       previous.clear();
       highlightStart = highlightEnd = -1;
+      illustrations = Collections.emptyList();
     }
     text = value;
     offset = Math.max(0, Math.min(position, text.length()));
@@ -83,6 +184,7 @@ public final class PagedTextView extends View {
   }
 
   public boolean next() {
+    if (showingImage() && scrollImage(1)) return true;
     if (next >= text.length()) return false;
     previous.put(next, offset);
     offset = next;
@@ -91,15 +193,22 @@ public final class PagedTextView extends View {
   }
 
   public boolean previous() {
+    if (showingImage() && scrollImage(-1)) return true;
     if (offset <= 0) return false;
     Integer known = previous.get(offset);
     offset = known != null ? known : previousOffset();
     reflow();
+    if (showingImage()) imageY = 1;
     return true;
   }
 
   private int previousOffset() {
     int start = Math.max(0, offset - 8192);
+    for (BookDocument.Illustration image : illustrations) {
+      if (image.end > offset) break;
+      if (blank(image.end, offset)) return image.start;
+      start = Math.max(start, image.end);
+    }
     int newline = text.indexOf('\n', start);
     if (start > 0 && newline > start && newline < offset - 128) start = newline + 1;
     StaticLayout l = build(text.substring(start, offset), start);
@@ -150,7 +259,38 @@ public final class PagedTextView extends View {
 
   private void reflow() {
     if (getWidth() <= 0 || getHeight() <= 0) return;
+    BookDocument.Illustration visible = null;
+    int imageStart = text.length();
+    for (BookDocument.Illustration candidate : illustrations) {
+      if (candidate.end <= offset) continue;
+      if (candidate.start <= offset || blank(offset, candidate.start)) visible = candidate;
+      imageStart = candidate.start;
+      break;
+    }
+    if (visible != currentImage) {
+      releaseIllustration();
+      currentImage = visible;
+    }
+    if (visible != null) {
+      offset = visible.start;
+      next = visible.end;
+      while (next < text.length() && Character.isWhitespace(text.charAt(next))) next++;
+      layout = null;
+      setContentDescription(
+          imageError == null
+              ? illustration == null ? "正在读取插图" : "图片正文，左右翻阅、上下移动，确定打开阅读菜单"
+              : "图片读取失败，按确定重试：" + imageError);
+      if (!imageRequested && onIllustrationNeeded != null) {
+        imageRequested = true;
+        onIllustrationNeeded.accept(visible);
+      }
+      invalidate();
+      if (onPageReady != null) onPageReady.run();
+      return;
+    }
+    setContentDescription("阅读正文，左右翻页，确定打开阅读菜单");
     int end = Math.min(text.length(), offset + 8192);
+    if (imageStart > offset) end = Math.min(end, imageStart);
     if (end < text.length() && end > offset && Character.isHighSurrogate(text.charAt(end - 1)))
       end--;
     String window = text.substring(offset, end);
@@ -174,11 +314,55 @@ public final class PagedTextView extends View {
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
+    if (currentImage != null) {
+      if (illustration != null) {
+        DocumentViewport viewport = imageViewport();
+        Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        RectF destination;
+        if (fitsWholeImage()) {
+          float scale =
+              Math.min(
+                  (float) getWidth() / illustration.getWidth(),
+                  (float) getHeight() / illustration.getHeight());
+          float width = illustration.getWidth() * scale, height = illustration.getHeight() * scale;
+          destination =
+              new RectF(
+                  (getWidth() - width) / 2,
+                  (getHeight() - height) / 2,
+                  (getWidth() + width) / 2,
+                  (getHeight() + height) / 2);
+        } else {
+          canvas.drawColor(Color.WHITE);
+          destination =
+              new RectF(
+                  0,
+                  -viewport.top(),
+                  viewport.documentWidth,
+                  viewport.documentHeight - viewport.top());
+        }
+        canvas.drawBitmap(illustration, null, destination, bitmapPaint);
+      } else {
+        paint.setTextSize(18 * getResources().getDisplayMetrics().scaledDensity);
+        paint.setColor(ink);
+        String label = imageError == null ? "正在读取插图…" : "图片读取失败，按确定重试";
+        canvas.drawText(
+            label,
+            Math.max(12, (getWidth() - paint.measureText(label)) / 2),
+            getHeight() / 2f,
+            paint);
+      }
+      return;
+    }
     if (layout != null) {
       canvas.save();
       canvas.translate((getWidth() - columnWidth()) / 2f, padding());
       layout.draw(canvas);
       canvas.restore();
     }
+  }
+
+  private boolean blank(int start, int end) {
+    for (int i = start; i < end; i++) if (!Character.isWhitespace(text.charAt(i))) return false;
+    return true;
   }
 }

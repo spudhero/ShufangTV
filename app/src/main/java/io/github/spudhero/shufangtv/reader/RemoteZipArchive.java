@@ -57,7 +57,7 @@ public final class RemoteZipArchive implements BookArchive {
   public InputStream open(String name) throws IOException {
     ZipArchiveEntry entry = zip.getEntry(name);
     if (entry == null) throw new FileNotFoundException(name);
-    if (entry.getSize() > 8 * 1024 * 1024) throw new IOException("单个 EPUB 章节或资源超过 8 MiB");
+    if (entry.getSize() > 16 * 1024 * 1024) throw new IOException("单个 EPUB 资源超过 16 MiB");
     if (!zip.canReadEntryData(entry)) throw new IOException("此 EPUB 使用了不支持的压缩或加密方式");
     return zip.getInputStream(entry);
   }

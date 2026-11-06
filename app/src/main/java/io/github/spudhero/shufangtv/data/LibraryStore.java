@@ -108,12 +108,18 @@ public final class LibraryStore {
           && m.chapter == b.chapter
           && m.offset == b.offset
           && m.pdfPage == b.pdfPage
+          && Math.abs(m.pdfY - b.pdfY) < .0001f
+          && Math.abs(m.imageY - b.imageY) < .0001f
           && m.txtByte == b.txtByte) return;
     Mark m = new Mark();
     m.bookId = b.id;
     m.chapter = b.chapter;
     m.offset = b.offset;
     m.pdfPage = b.pdfPage;
+    m.pdfX = b.pdfX;
+    m.pdfY = b.pdfY;
+    m.pdfZoom = b.pdfZoom;
+    m.imageY = b.imageY;
     m.txtByte = b.txtByte;
     m.excerpt = excerpt;
     m.mode = b.lastMode;
@@ -207,6 +213,7 @@ public final class LibraryStore {
   public static final class Mark {
     public String id = UUID.randomUUID().toString(), bookId, excerpt = "", mode = "offline";
     public int chapter, offset, pdfPage;
+    public float pdfX, pdfY, imageY, pdfZoom = 1;
     public long txtByte;
     public int end;
     public long createdAt;
@@ -235,6 +242,10 @@ public final class LibraryStore {
           .put("chapter", chapter)
           .put("offset", offset)
           .put("pdfPage", pdfPage)
+          .put("pdfX", pdfX)
+          .put("pdfY", pdfY)
+          .put("pdfZoom", pdfZoom)
+          .put("imageY", imageY)
           .put("txtByte", txtByte)
           .put("end", end)
           .put("note", note)
@@ -250,6 +261,10 @@ public final class LibraryStore {
       m.chapter = Math.max(0, j.optInt("chapter"));
       m.offset = Math.max(0, j.optInt("offset"));
       m.pdfPage = Math.max(0, j.optInt("pdfPage"));
+      m.pdfX = BookRecord.bounded(j.optDouble("pdfX", 0), 0, 1);
+      m.pdfY = BookRecord.bounded(j.optDouble("pdfY", 0), 0, 1);
+      m.pdfZoom = BookRecord.bounded(j.optDouble("pdfZoom", 1), 1, 3);
+      m.imageY = BookRecord.bounded(j.optDouble("imageY", 0), 0, 1);
       m.txtByte = Math.max(0, j.optLong("txtByte"));
       m.end = Math.max(0, j.optInt("end"));
       m.note = boundedNote(j.optString("note"));

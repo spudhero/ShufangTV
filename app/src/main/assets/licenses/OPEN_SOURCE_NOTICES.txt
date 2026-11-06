@@ -1217,3 +1217,16 @@ ZXing core 3.5.3
 Copyright ZXing authors. Licensed under the Apache License, Version 2.0 (full text above).
 Upstream: https://github.com/zxing/zxing
 Used for local QR-code generation only.
+
+
+AndroidSVG 1.4
+Copyright 2013 Paul LeBeau, Cave Rock Software Ltd.
+Apache License 2.0; see ANDROIDSVG-LICENSE.txt.
+https://github.com/BigBadaboom/androidsvg
+
+libmobi 0.12
+Copyright 2014-2026 Bartek Fabiszewski and contributors.
+LGPL-3.0-or-later; see LIBMOBI-LGPL-3.0.txt and LIBMOBI-GPL-3.0.txt.
+Source and build/relink instructions: https://github.com/spudhero/ShufangTV/tree/main/third_party/libmobi
+Upstream: https://github.com/bfabiszewski/libmobi
+Separately linked shared library; encryption disabled.
