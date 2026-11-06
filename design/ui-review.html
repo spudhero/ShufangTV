@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="书房 TV 局部界面优化：长书名、朗读与语音、阅读帮助与启动器资产。仅使用合成示例。">
+  <title>书房 TV · 界面细化</title>
+  <link rel="icon" type="image/svg+xml" href="assets/ui-refinements/book-original.svg">
+  <style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+  .od-stack { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill { flex: 1 1 0; min-width: 0; }
+  .od-fixed { flex: none; }
+  .od-grid { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+  .od-stat,.od-field,.od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2,.od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap { white-space: nowrap; }
+  .od-keep { word-break: keep-all; overflow-wrap: anywhere; }
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+  </style>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="assets/ui-refinements/ui-review.css">
+  <script src="assets/ui-refinements/ui-review.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#tv-stage">跳到电视界面</a>
+  <header class="preview-chrome" aria-label="设计预览工具，与电视产品界面分离">
+    <div class="preview-heading"><strong>书房 TV</strong><span>局部界面细化 · 合成内容</span></div>
+    <nav class="preview-tabs" aria-label="预览页面">
+      <button type="button" data-view="home" aria-pressed="true">首页</button>
+      <button type="button" data-view="settings" aria-pressed="false">朗读与语音</button>
+      <button type="button" data-view="reader" aria-pressed="false">阅读菜单</button>
+      <button type="button" data-view="assets" aria-pressed="false">启动器资产</button>
+    </nav>
+    <label>画布<select id="resolution"><option value="1080">1080p · 960×540dp</option><option value="720">720p · 640×360dp</option></select></label>
+    <label>语音样例<select id="engine"><option value="missing">Sony · 无语音引擎</option><option value="detected">检测到服务 · 中文待检查</option><option value="controls">已有朗读控件 · 无声演示</option></select></label>
+    <label>阅读内容<select id="format"><option value="EPUB">EPUB 文本</option><option value="TXT">TXT 文本</option><option value="PDF">PDF</option><option value="IMAGE">纯图片</option></select></label>
+  </header>
+  <div class="preview-note" id="preview-note" role="status">方向键移动焦点，Enter 确认，Escape 返回。示例不连接语音服务，不打开本机系统设置。</div>
+  <div class="preview-shell" id="preview-shell" data-resolution="1080">
+    <main class="tv-screen" id="tv-stage" tabindex="-1" aria-label="书房 TV 交互界面"></main>
+  </div>
+  <footer class="preview-footer"><span>预览说明与资产尺寸位于电视画布外；界面内仅保留读者需要的信息。</span><a href="UI-REFINEMENTS.md">查看原生实现规范</a></footer>
+</body>
+</html>

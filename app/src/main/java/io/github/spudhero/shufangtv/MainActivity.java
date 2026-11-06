@@ -37,6 +37,7 @@ public final class MainActivity extends Activity {
   private SourceConfig browsing;
   private String browserFocusPath = "";
   private boolean sortTitle;
+  private boolean settingsHasSpeechEngine;
   private String shelfGroup = "", shelfState = "", shelfFocus = "", markFocus = "", markKind = "";
   private volatile int operation;
   private volatile boolean destroyed;
@@ -220,11 +221,17 @@ public final class MainActivity extends Activity {
     gap(hero, 32);
     LinearLayout info = vertical(this);
     add(info, text(this, "正在阅读 · " + modeLabel(current.lastMode), 12, ACCENT), -1, 25);
-    add(info, heading(this, current.title, 30), -1, 48);
+    boolean compact = getResources().getConfiguration().screenHeightDp < 450;
+    TextView currentTitle = heading(this, current.title, compact ? 24 : 30);
+    currentTitle.setMaxLines(2);
+    currentTitle.setEllipsize(TextUtils.TruncateAt.END);
+    currentTitle.setContentDescription(current.title);
+    currentTitle.setLineSpacing(dp(this, 3), 1);
+    add(info, currentTitle, -1, -2);
     gap(info, 8);
     add(
         info,
-        text(
+        SourceUi.single(
             this,
             current.author.isEmpty() ? current.format.toUpperCase(Locale.ROOT) : current.author,
             14,
@@ -234,8 +241,12 @@ public final class MainActivity extends Activity {
     gap(info, 7);
     add(info, text(this, positionLabel(current), 12, MUTED), -1, 26);
     gap(info, 10);
+    LinearLayout resumeActions = horizontal(this);
     TextView resume = button(this, "继续阅读", true, () -> openPreferred(current));
-    add(info, resume, 150, 40);
+    add(resumeActions, resume, 150, 44);
+    gap(resumeActions, 10);
+    add(resumeActions, button(this, "书名详情", false, () -> message(current.title)), 110, 44);
+    add(info, resumeActions, -1, 44);
     hero.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
     add(body, hero, -1, -2);
     line(body);
@@ -1881,8 +1892,31 @@ public final class MainActivity extends Activity {
 
   private void showSettings() {
     View previous = route.equals("settings") && root != null ? root.findFocus() : null;
-    String anchor = previous == null ? "settings-font-less" : String.valueOf(previous.getTag());
+    boolean hasSpeechEngine = SpeechSetup.hasEngine(this);
+    String anchor =
+        previous == null
+            ? hasSpeechEngine ? "settings-font-less" : "settings-speech-settings"
+            : String.valueOf(previous.getTag());
     shell("settings", "设置", "全局阅读默认值 · 本书独立排版不受影响");
+    settingsHasSpeechEngine = hasSpeechEngine;
+    ReadingPanel.section(body, "朗读与语音");
+    add(body, text(this, settingsHasSpeechEngine ? "已检测到系统语音引擎" : "未检测到语音引擎", 14, TEXT), -1, -2);
+    gap(body, 6);
+    TextView speechHelp =
+        text(
+            this,
+            settingsHasSpeechEngine
+                ? "开启朗读时检查中文支持；语音数据由系统引擎管理。"
+                : "需在电视系统中安装或启用支持中文的文字转语音引擎，再返回开启朗读。",
+            13,
+            MUTED);
+    speechHelp.setLineSpacing(dp(this, 4), 1);
+    add(body, speechHelp, -1, -2);
+    gap(body, 6);
+    add(body, text(this, "朗读正文仅在前台播放；PDF 与纯图片暂不支持识字朗读。", 12, MUTED), -1, -2);
+    gap(body, 10);
+    ReadingPanel.row(
+        body, globalSetting("系统语音设置", "speech-settings", false, () -> SpeechSetup.open(this)));
     ReadingStyle style = ReadingStyle.defaults(preferences);
     ReadingPanel.section(body, "字号 · " + style.font + " 号");
     ReadingPanel.row(
@@ -1999,6 +2033,8 @@ public final class MainActivity extends Activity {
                 message(
                     "正文：左右翻页，确定键打开菜单。\n"
                         + "下键进入操作区，上键返回正文。\n"
+                        + "插图：阅读菜单可选适合整图或 100% 适合屏宽，上下键滚动长图。\n"
+                        + "PDF：100% 为适合屏宽，上下键滚动；放大后左右键平移，通过菜单或操作区翻页。\n"
                         + "正文搜索仅检索当前章或片段。\n"
                         + "选段时上下键移动，确定键保存并备注。\n"
                         + "朗读进入后台会暂停；自动翻页关菜单后恢复，手动暂停需主动继续。\n"
@@ -2247,6 +2283,8 @@ public final class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     if (reader != null) reader.foreground(true);
+    else if (route.equals("settings") && settingsHasSpeechEngine != SpeechSetup.hasEngine(this))
+      showSettings();
   }
 
   @Override

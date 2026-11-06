@@ -1,5 +1,18 @@
 # 原生界面与 Sony 实机图
 
+## UI、听书准备与启动器 · 0.4.0-alpha.2
+
+本轮结果见 [UI 复核](UI-AUDIT-2026-11-06.md)。实机图仅包含原创指南或应用设置；合成渲染与设备画面分别列出。
+
+| 证据 | 图像 |
+| --- | --- |
+| Sony 原生设置与指南，1920×1080 | [设置前后](screenshots/ui-audit-2026-11-06/settings-comparison.png)、[指南菜单前后](screenshots/ui-audit-2026-11-06/guide-menu-comparison.png)、[缺少引擎提示](screenshots/ui-audit-2026-11-06/speech-setup-final.png) |
+| Robolectric 原生 View，合成极长书名 | [1080p](screenshots/ui-audit-2026-11-06/home-title-1080p.png)、[720p](screenshots/ui-audit-2026-11-06/home-title-720p.png)、[720p 完整详情](screenshots/ui-audit-2026-11-06/home-title-720p-detail.png) |
+| Robolectric 合成语音服务状态 | [720p 无服务](screenshots/ui-audit-2026-11-06/speech-settings-missing-720p.png)、[服务已检测、中文待检查](screenshots/ui-audit-2026-11-06/speech-settings-detected-1080p.png) |
+| 本轮交付的真实启动资源，静态资产预览 | [图标与电视横幅](screenshots/ui-audit-2026-11-06/launcher-assets.png)；[Sony 应用卡片裁图](screenshots/ui-audit-2026-11-06/sony-launcher-crop.png)为实际设备画面 |
+
+服务状态样例不证明中文可发声；本次 Sony 实测未安装语音引擎。用户实际书名、漫画 / PDF / Kindle 页面与首页前后对照保存在本地忽略目录，未纳入公开截图。
+
 ## Sony 实机 · 2026-11-06
 
 BRAVIA 4K UR2，Android 10 / 1920×1080 / 320dpi；通过 ADB 捕获物理电视屏幕。内容为原创指南和自行生成的测试书，不含真实账号或授权票据。概览只缩小/拼接实际画面；单图保留原始分辨率。测试操作及限制见 [集成记录](INTEGRATION-2026-11-06.md)。

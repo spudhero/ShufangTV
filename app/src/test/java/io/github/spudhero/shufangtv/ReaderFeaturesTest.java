@@ -106,6 +106,17 @@ public class ReaderFeaturesTest {
   public void narrationTimerMediaKeyAndAutoPagingShareOneReadingPosition() throws Exception {
     org.robolectric.shadows.ShadowTextToSpeech.addLanguageAvailability(
         java.util.Locale.SIMPLIFIED_CHINESE);
+    android.content.pm.ResolveInfo engine = new android.content.pm.ResolveInfo();
+    engine.serviceInfo = new android.content.pm.ServiceInfo();
+    engine.serviceInfo.packageName = "test.speech";
+    engine.serviceInfo.name = "test.speech.Engine";
+    engine.serviceInfo.exported = true;
+    org.robolectric.Shadows.shadowOf(
+            org.robolectric.RuntimeEnvironment.getApplication().getPackageManager())
+        .addResolveInfoForIntent(
+            new android.content.Intent(
+                android.speech.tts.TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
+            engine);
     try (ActivityController<MainActivity> controller =
         Robolectric.buildActivity(MainActivity.class).setup()) {
       MainActivity activity = controller.get();

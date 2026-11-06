@@ -3,7 +3,6 @@ package io.github.spudhero.shufangtv.ui;
 import static io.github.spudhero.shufangtv.ui.TvStyle.*;
 
 import android.app.*;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Handler;
@@ -615,7 +614,13 @@ public final class ReaderScreen extends LinearLayout {
       ReadingPanel.row(
           content,
           tool(dialog, "搜索当前正文", session.epub != null ? "只搜索本章" : "只搜索当前片段", this::searchDialog),
-          tool(dialog, "朗读正文", speech == null ? "中文语音 · 可定时" : "返回朗读控制", this::startSpeech));
+          tool(
+              dialog,
+              "朗读正文",
+              speech != null
+                  ? "返回朗读控制"
+                  : SpeechSetup.hasEngine(activity) ? "开启时检查中文支持" : "未检测到语音引擎",
+              this::startSpeech));
     ReadingPanel.section(content, "记录");
     View bookmark = tool(dialog, "添加书签", "记住当前阅读位置", this::addBookmark);
     if (!book.format.equals("pdf"))
@@ -624,7 +629,13 @@ public final class ReaderScreen extends LinearLayout {
     ReadingPanel.section(content, "显示");
     ReadingStyle style = ReadingStyle.effective(book, prefs);
     View paper =
-        tool(dialog, "亮度与纸色", new String[] {"暗色书房", "暖纸色", "墨黑"}[style.paper], this::paperMenu);
+        tool(
+            dialog,
+            book.format.equals("pdf") ? "阅读亮度" : "亮度与纸色",
+            book.format.equals("pdf")
+                ? prefs.getInt("brightness", 100) + "% · 全局设置"
+                : new String[] {"暗色书房", "暖纸色", "墨黑"}[style.paper],
+            this::paperMenu);
     if (book.format.equals("pdf")) {
       ReadingPanel.row(
           content,
@@ -691,7 +702,8 @@ public final class ReaderScreen extends LinearLayout {
         label,
         detail,
         () -> {
-          if (!label.equals("字体与排版") && !label.equals("亮度与纸色")) dialog.dismiss();
+          if (!label.equals("字体与排版") && !label.equals("亮度与纸色") && !label.equals("阅读亮度"))
+            dialog.dismiss();
           action.run();
         });
   }
@@ -863,6 +875,10 @@ public final class ReaderScreen extends LinearLayout {
       updateControls();
       return;
     }
+    if (!SpeechSetup.hasEngine(activity)) {
+      showSpeechSetup();
+      return;
+    }
     speechRequested = true;
     speechReady = false;
     stopAtChapter = false;
@@ -906,12 +922,7 @@ public final class ReaderScreen extends LinearLayout {
                 speechReady = available;
                 if (!available) {
                   speechRequested = false;
-                  new ReaderDialog(activity)
-                      .setTitle("需要中文语音引擎")
-                      .setMessage("请在系统中安装或启用支持中文的文字转语音引擎，再返回阅读菜单开启朗读。语音数据下载由系统引擎管理。")
-                      .setPositiveButton("打开语音设置", (d, w) -> openSpeechSettings())
-                      .setNegativeButton("返回", null)
-                      .show();
+                  showSpeechSetup();
                   stopSpeech();
                   return;
                 }
@@ -1151,16 +1162,13 @@ public final class ReaderScreen extends LinearLayout {
     if (sleepLabel != null) sleepLabel.setText("定时停止");
   }
 
-  private void openSpeechSettings() {
-    try {
-      activity.startActivity(new Intent("com.android.settings.TTS_SETTINGS"));
-    } catch (android.content.ActivityNotFoundException e) {
-      try {
-        activity.startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS));
-      } catch (android.content.ActivityNotFoundException unavailable) {
-        Toast.makeText(activity, "请从电视系统设置中配置文字转语音", Toast.LENGTH_LONG).show();
-      }
-    }
+  private void showSpeechSetup() {
+    new ReaderDialog(activity)
+        .setTitle("需要中文语音引擎")
+        .setMessage("请在系统中安装或启用支持中文的文字转语音引擎，再返回阅读菜单开启朗读。语音数据下载由系统引擎管理。")
+        .setPositiveButton("打开语音设置", (d, w) -> SpeechSetup.open(activity))
+        .setNegativeButton("返回", null)
+        .show();
   }
 
   private boolean mayAutoAdvance() {
@@ -1513,10 +1521,15 @@ public final class ReaderScreen extends LinearLayout {
   }
 
   private void paperMenu() {
+    boolean pdf = book.format.equals("pdf");
+    String initial =
+        pdf
+            ? "brightness-" + prefs.getInt("brightness", 100)
+            : "paper-" + ReadingStyle.effective(book, prefs).paper;
     LinearLayout content = vertical(activity);
     AlertDialog dialog =
         new ReaderDialog(activity)
-            .setTitle("亮度与纸色")
+            .setTitle(pdf ? "阅读亮度" : "亮度与纸色")
             .setView(ReadingPanel.scroll(activity, content))
             .setNegativeButton("完成", null)
             .create();
@@ -1524,28 +1537,28 @@ public final class ReaderScreen extends LinearLayout {
     render[0] =
         () -> {
           String focused =
-              content.findFocus() == null
-                  ? "paper-0"
-                  : String.valueOf(content.findFocus().getTag());
+              content.findFocus() == null ? initial : String.valueOf(content.findFocus().getTag());
           content.removeAllViews();
           ReadingStyle style = ReadingStyle.effective(book, prefs);
-          ReadingPanel.section(content, "纸色 · " + (book.readingStyle == null ? "全局默认" : "仅本书"));
-          String[] names = {"暗色书房", "暖纸色", "墨黑"};
-          View[] papers = new View[3];
-          for (int i = 0; i < 3; i++) {
-            final int choice = i;
-            papers[i] =
-                setting(
-                    names[i],
-                    "paper-" + i,
-                    style.paper == i,
-                    () -> {
-                      style.paper = choice;
-                      saveStyle(style);
-                      render[0].run();
-                    });
+          if (!pdf) {
+            ReadingPanel.section(content, "纸色 · " + (book.readingStyle == null ? "全局默认" : "仅本书"));
+            String[] names = {"暗色书房", "暖纸色", "墨黑"};
+            View[] papers = new View[3];
+            for (int i = 0; i < 3; i++) {
+              final int choice = i;
+              papers[i] =
+                  setting(
+                      names[i],
+                      "paper-" + i,
+                      style.paper == i,
+                      () -> {
+                        style.paper = choice;
+                        saveStyle(style);
+                        render[0].run();
+                      });
+            }
+            ReadingPanel.row(content, papers);
           }
-          ReadingPanel.row(content, papers);
           ReadingPanel.section(content, "阅读亮度 · 全局设置");
           View[] levels = new View[3];
           int[] brightness = {60, 80, 100};
@@ -1568,7 +1581,8 @@ public final class ReaderScreen extends LinearLayout {
         };
     render[0].run();
     dialog.show();
-    content.findViewWithTag("paper-" + ReadingStyle.effective(book, prefs).paper).requestFocus();
+    View selected = content.findViewWithTag(initial);
+    if (selected != null) selected.requestFocus();
   }
 
   public void save() {
