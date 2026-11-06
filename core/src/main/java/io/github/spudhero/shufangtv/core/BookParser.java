@@ -194,7 +194,7 @@ public final class BookParser {
     }
     ManifestItem nav = null;
     ManifestItem ncx = null;
-    String coverPath = null;
+    String coverPath = null, legacyCover = null, namedCover = null;
     for (Element element : manifest.children()) {
       if (!"item".equals(local(element.tagName()))) continue;
       String id = element.attr("id");
@@ -213,8 +213,29 @@ public final class BookParser {
       items.put(id, item);
       if (token(item.properties, "nav")) nav = item;
       if ("application/x-dtbncx+xml".equals(item.mediaType)) ncx = item;
-      if (token(item.properties, "cover-image") || item.id.equals(coverId)) coverPath = item.path;
+      if (token(item.properties, "cover-image")) coverPath = item.path;
+      if (item.id.equals(coverId)) legacyCover = item.path;
+      if (item.mediaType.startsWith("image/")
+          && (id.equalsIgnoreCase("cover") || href.matches("(?i).*(?:^|/)cover\\.[^/]+$")))
+        namedCover = item.path;
     }
+    if (coverPath == null) coverPath = legacyCover;
+    if (coverPath == null) {
+      Element guide = first(opf, "guide");
+      if (guide != null)
+        for (Element ref : descendants(guide, "reference"))
+          if (token(ref.attr("type"), "cover")
+              && !ref.attr("href").isEmpty()
+              && !external(ref.attr("href"))) {
+            try {
+              coverPath = resolve(packagePath, ref.attr("href"));
+            } catch (IOException ignored) {
+              // Optional cover metadata must not prevent reading a valid spine.
+            }
+            break;
+          }
+    }
+    if (coverPath == null) coverPath = namedCover;
     String tocId = spine.attr("toc");
     if (!tocId.isEmpty() && items.containsKey(tocId)) ncx = items.get(tocId);
     Map<String, String> titles = new HashMap<>();
@@ -306,6 +327,30 @@ public final class BookParser {
     return book.coverPath == null
         ? null
         : optional(archive, canonicalEntry(book.coverPath), coverLimit, null);
+  }
+
+  /** Resolves a cover page without scanning the rest of the book or fetching its images. */
+  public BookDocument.Illustration coverIllustration(BookArchive archive, EpubBook book)
+      throws IOException {
+    String path = book.coverPath;
+    if (path == null) {
+      if (book.spine.isEmpty()) return null;
+      path = book.spine.get(0).path;
+    }
+    String lower = path.toLowerCase(Locale.ROOT);
+    if (lower.matches(".*\\.(?:jpe?g|png|gif|webp|bmp|svg|avif)$"))
+      return new BookDocument.Illustration(0, 0, path, "封面", "");
+    byte[] page = optional(archive, canonicalEntry(path), coverLimit, null);
+    if (page == null) return null;
+    Document document = html(page);
+    Element image = document.selectFirst("img[src],svg");
+    if (image == null) return null;
+    if ("svg".equals(local(image.normalName())))
+      return new BookDocument.Illustration(0, 0, path, "封面", image.outerHtml());
+    String src = image.attr("src");
+    if (src.isEmpty()) return null;
+    return new BookDocument.Illustration(
+        0, 0, src.startsWith("data:image/") ? src : resolve(path, src), "封面", "");
   }
 
   private BookDocument parseText(File file) throws IOException {

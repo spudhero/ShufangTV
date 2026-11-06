@@ -118,6 +118,79 @@ public class BookParserTest {
   }
 
   @Test
+  public void epub3CoverWinsOverLegacyMetadataRegardlessOfManifestOrder() throws Exception {
+    Map<String, byte[]> entries =
+        book(
+            item("a", "a.xhtml")
+                + "<item id='new' href='new.png' media-type='image/png' properties='cover-image'/>"
+                + "<item id='old' href='old.jpg' media-type='image/jpeg'/>",
+            "<itemref idref='a'/>");
+    entries.put(
+        "OPS/book.opf",
+        bytes(
+            new String(entries.get("OPS/book.opf"), StandardCharsets.UTF_8)
+                .replace("</metadata>", "<meta name='cover' content='old'/></metadata>")));
+    MemoryArchive archive = new MemoryArchive(entries);
+    EpubBook book = parser.inspect(archive);
+    assertEquals("OPS/new.png", book.coverPath);
+    assertEquals("OPS/new.png", parser.coverIllustration(archive, book).source);
+    assertFalse(archive.opened.contains("OPS/new.png"));
+  }
+
+  @Test
+  public void epub2GuideCoverPageKeepsSvgBasePathAndDoesNotReadOtherChapters() throws Exception {
+    Map<String, byte[]> entries = book(item("a", "a.xhtml"), "<itemref idref='a'/>");
+    entries.put(
+        "OPS/book.opf",
+        bytes(
+            new String(entries.get("OPS/book.opf"), StandardCharsets.UTF_8)
+                .replace(
+                    "</package>",
+                    "<guide><reference type='cover'"
+                        + " href='Text/cover.xhtml#top'/></guide></package>")));
+    entries.put(
+        "OPS/Text/cover.xhtml",
+        html("封面", "<svg viewBox='0 0 600 900'><image xlink:href='../Images/封面.png'/></svg>"));
+    MemoryArchive archive = new MemoryArchive(entries);
+    EpubBook book = parser.inspect(archive);
+    assertFalse(archive.opened.contains("OPS/Text/cover.xhtml"));
+    BookDocument.Illustration image = parser.coverIllustration(archive, book);
+    assertEquals("OPS/Text/cover.xhtml", image.source);
+    assertTrue(image.svg.contains("../Images/封面.png"));
+    assertFalse(archive.opened.contains("OPS/a.xhtml"));
+    assertEquals(0, archive.activeStreams);
+  }
+
+  @Test
+  public void unmarkedCoverUsesOnlyFirstSpineImageAndResolvesEncodedPath() throws Exception {
+    Map<String, byte[]> entries =
+        book(
+            item("a", "Text/start.xhtml") + item("b", "Text/rest.xhtml"),
+            "<itemref idref='a'/><itemref idref='b'/>");
+    entries.put(
+        "OPS/Text/start.xhtml", html("封面", "<img src='../Images/%E5%B0%81%E9%9D%A2.jpg'/>"));
+    MemoryArchive archive = new MemoryArchive(entries);
+    BookDocument.Illustration cover = parser.coverIllustration(archive, parser.inspect(archive));
+    assertEquals("OPS/Images/封面.jpg", cover.source);
+    assertFalse(archive.opened.contains("OPS/Text/rest.xhtml"));
+    assertFalse(archive.opened.contains(cover.source));
+  }
+
+  @Test
+  public void coverPageCannotEscapeArchiveOrExceedTheCoverBudget() throws Exception {
+    MemoryArchive archive = new MemoryArchive(new LinkedHashMap<>());
+    EpubBook book = new EpubBook("书", "人", new ArrayList<>(), "cover.xhtml");
+    archive.entries.put(
+        "cover.xhtml", html("封面", "<img src='https://example.invalid/cover.png'/>"));
+    assertThrows(IOException.class, () -> parser.coverIllustration(archive, book));
+    archive.entries.put("cover.xhtml", html("封面", "<img src='../../secret.png'/>"));
+    assertThrows(IOException.class, () -> parser.coverIllustration(archive, book));
+    BookParser limited = new BookParser(1024, 1024, 4096, 32);
+    assertThrows(IOException.class, () -> limited.coverIllustration(archive, book));
+    assertEquals(0, archive.activeStreams);
+  }
+
+  @Test
   public void offlineImportFollowsSpineNotZipOrder() throws Exception {
     Map<String, byte[]> entries =
         book(

@@ -29,6 +29,7 @@ public final class MainActivity extends Activity {
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private LibraryStore library;
   private SourceStore sources;
+  private CoverRepository covers;
   private SharedPreferences preferences;
   private LinearLayout root, body, pageHeader, pageFooter;
   private Dialog sourceMenu;
@@ -65,6 +66,7 @@ public final class MainActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
     library = new LibraryStore(this);
     sources = new SourceStore(this);
+    covers = new CoverRepository(this, library, sources);
     clouds = CloudLibrary.get(this);
     network = new NetworkLibrary(clouds);
     preferences = getSharedPreferences("reading", MODE_PRIVATE);
@@ -217,7 +219,7 @@ public final class MainActivity extends Activity {
     BookRecord current = recent.get(0);
     LinearLayout hero = horizontal(this);
     hero.setPadding(dp(this, 4), dp(this, 8), 0, dp(this, 20));
-    add(hero, new CoverView(this, current.title, current.author), 122, 171);
+    add(hero, bookCover(current), 122, 171);
     gap(hero, 32);
     LinearLayout info = vertical(this);
     add(info, text(this, "正在阅读 · " + modeLabel(current.lastMode), 12, ACCENT), -1, 25);
@@ -363,6 +365,12 @@ public final class MainActivity extends Activity {
     }
   }
 
+  private CoverView bookCover(BookRecord book) {
+    CoverView view = new CoverView(this, book.title, book.author);
+    covers.bind(view, book);
+    return view;
+  }
+
   private void addBookGrid(List<BookRecord> books, int columns) {
     for (int start = 0; start < books.size(); start += columns) {
       LinearLayout row = horizontal(this);
@@ -388,7 +396,7 @@ public final class MainActivity extends Activity {
             (v, focused) ->
                 v.setBackground(panel(this, focused ? SURFACE : BG, focused ? FOCUS : 0)));
         card.setOnClickListener(v -> bookActions(book));
-        add(card, new CoverView(this, book.title, book.author), 96, 134);
+        add(card, bookCover(book), 96, 134);
         gap(card, 8);
         TextView title = text(this, book.title, 14, TEXT);
         title.setMaxLines(2);
@@ -2290,6 +2298,7 @@ public final class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     destroyed = true;
+    covers.close();
     operation++;
     if (reader != null) reader.dispose();
     if (cloudLogin != null) cloudLogin.close();

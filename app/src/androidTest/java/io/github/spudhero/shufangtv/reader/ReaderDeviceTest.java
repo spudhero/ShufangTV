@@ -47,6 +47,14 @@ public class ReaderDeviceTest extends TestCase {
       BookSession.PdfFrame zoom = session.renderPdf(0, 800, 400, 2, 1, .3f);
       assertEquals(800, zoom.bitmap.getWidth());
       assertEquals(1600, zoom.viewport.documentWidth, .01);
+      Bitmap cover = session.coverThumbnail(384, 576);
+      assertEquals(384, cover.getWidth());
+      assertEquals(576, cover.getHeight());
+      assertEquals(Color.RED, cover.getPixel(192, 100));
+      assertEquals(Color.BLUE, cover.getPixel(192, 476));
+      assertEquals(0, book.pdfPage);
+      assertEquals(1f, book.pdfZoom);
+      cover.recycle();
       top.bitmap.recycle();
       bottom.bitmap.recycle();
       zoom.bitmap.recycle();

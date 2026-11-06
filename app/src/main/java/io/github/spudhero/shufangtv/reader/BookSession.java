@@ -18,7 +18,6 @@ public final class BookSession implements AutoCloseable {
   public final boolean online;
   public EpubBook epub;
   public String title, author;
-  public byte[] cover;
   public TextSegments.Segment segment;
   private BookArchive archive;
   private TextSegments text;
@@ -156,11 +155,6 @@ public final class BookSession implements AutoCloseable {
             : parser.inspect(archive);
     title = epub.title;
     author = epub.author;
-    try {
-      cover = parser.readCover(archive, epub);
-    } catch (IOException ignored) {
-      cover = null;
-    }
   }
 
   public int chapterCount() {
@@ -203,6 +197,33 @@ public final class BookSession implements AutoCloseable {
 
   public Bitmap illustration(BookDocument.Illustration ref) throws IOException {
     return IllustrationDecoder.read(archive, ref);
+  }
+
+  /** Full first-page thumbnail; independent of the reader's current page, scroll and zoom. */
+  public Bitmap coverThumbnail(int width, int height) throws IOException {
+    if (epub != null) {
+      BookDocument.Illustration image = parser.coverIllustration(archive, epub);
+      return image == null ? null : IllustrationDecoder.read(archive, image, width, height);
+    }
+    if (pdf == null || pdf.getPageCount() == 0) return null;
+    try (PdfRenderer.Page page = pdf.openPage(0)) {
+      float scale = Math.min((float) width / page.getWidth(), (float) height / page.getHeight());
+      Bitmap bitmap =
+          Bitmap.createBitmap(
+              Math.max(1, Math.round(page.getWidth() * scale)),
+              Math.max(1, Math.round(page.getHeight() * scale)),
+              Bitmap.Config.ARGB_8888);
+      bitmap.eraseColor(Color.WHITE);
+      Matrix matrix = new Matrix();
+      matrix.setScale(scale, scale);
+      try {
+        page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+        return bitmap;
+      } catch (RuntimeException e) {
+        bitmap.recycle();
+        throw new IOException("PDF 封面读取失败", e);
+      }
+    }
   }
 
   public static final class PdfFrame {

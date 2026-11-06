@@ -13,7 +13,13 @@ public final class IllustrationDecoder {
   private static final int MAX_BYTES = 16 * 1024 * 1024;
   private static final int MAX_PIXELS = 6 * 1024 * 1024;
 
-  public static synchronized Bitmap read(BookArchive archive, BookDocument.Illustration image)
+  public static Bitmap read(BookArchive archive, BookDocument.Illustration image)
+      throws IOException {
+    return read(archive, image, 4096, 4096);
+  }
+
+  public static Bitmap read(
+      BookArchive archive, BookDocument.Illustration image, int maxWidth, int maxHeight)
       throws IOException {
     byte[] data =
         image.svg.isEmpty()
@@ -25,58 +31,89 @@ public final class IllustrationDecoder {
         || prefix.contains("<svg")) {
       if (prefix.contains("<!DOCTYPE") || prefix.contains("<!ENTITY"))
         throw new IOException("图片含不支持的外部实体");
-      try {
-        SVG svg = SVG.getFromInputStream(new ByteArrayInputStream(data));
-        SVG.registerExternalFileResolver(
-            new SVGExternalFileResolver() {
-              @Override
-              public Bitmap resolveImage(String name) {
-                try {
-                  String source = BookParser.resolve(image.source, name);
-                  return raster(bytes(archive, source));
-                } catch (Exception ignored) {
-                  return null;
-                }
-              }
-            });
-        RectF box = svg.getDocumentViewBox();
-        float w = svg.getDocumentWidth(), h = svg.getDocumentHeight();
-        if (w <= 0 || h <= 0) {
-          w = box == null ? 1920 : box.width();
-          h = box == null ? 1080 : box.height();
-        }
-        float scale =
-            Math.min(
-                1,
-                Math.min(4096f / Math.max(w, h), (float) Math.sqrt(MAX_PIXELS / ((double) w * h))));
-        int width = Math.max(1, (int) (w * scale)), height = Math.max(1, (int) (h * scale));
-        svg.setDocumentWidth(width);
-        svg.setDocumentHeight(height);
-        Bitmap result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        svg.renderToCanvas(new Canvas(result));
-        return result;
-      } catch (Exception e) {
-        throw new IOException("SVG 插图解析失败", e);
-      } finally {
-        SVG.deregisterExternalFileResolver();
-      }
+      return svg(archive, image, data, maxWidth, maxHeight);
     }
-    return raster(data);
+    return raster(data, maxWidth, maxHeight);
   }
 
-  private static Bitmap raster(byte[] data) throws IOException {
+  // AndroidSVG's external resolver is global; only SVG rendering needs this lock.
+  private static synchronized Bitmap svg(
+      BookArchive archive,
+      BookDocument.Illustration image,
+      byte[] data,
+      int maxWidth,
+      int maxHeight)
+      throws IOException {
+    try {
+      SVG svg = SVG.getFromInputStream(new ByteArrayInputStream(data));
+      SVG.registerExternalFileResolver(
+          new SVGExternalFileResolver() {
+            @Override
+            public Bitmap resolveImage(String name) {
+              try {
+                String source = BookParser.resolve(image.source, name);
+                return raster(bytes(archive, source), maxWidth, maxHeight);
+              } catch (Exception ignored) {
+                return null;
+              }
+            }
+          });
+      RectF box = svg.getDocumentViewBox();
+      float w = svg.getDocumentWidth(), h = svg.getDocumentHeight();
+      if (w <= 0 || h <= 0) {
+        w = box == null ? 1920 : box.width();
+        h = box == null ? 1080 : box.height();
+      }
+      float scale =
+          Math.min(
+              1,
+              Math.min(
+                  Math.min(maxWidth / w, maxHeight / h),
+                  (float) Math.sqrt(MAX_PIXELS / ((double) w * h))));
+      int width = Math.max(1, (int) (w * scale)), height = Math.max(1, (int) (h * scale));
+      svg.setDocumentWidth(width);
+      svg.setDocumentHeight(height);
+      Bitmap result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+      svg.renderToCanvas(new Canvas(result));
+      return result;
+    } catch (Exception e) {
+      throw new IOException("SVG 插图解析失败", e);
+    } finally {
+      SVG.deregisterExternalFileResolver();
+    }
+  }
+
+  public static Bitmap thumbnail(byte[] data, int width, int height) throws IOException {
+    return raster(data, width, height);
+  }
+
+  private static Bitmap raster(byte[] data, int maxWidth, int maxHeight) throws IOException {
     BitmapFactory.Options options = new BitmapFactory.Options();
     options.inJustDecodeBounds = true;
     BitmapFactory.decodeByteArray(data, 0, data.length, options);
     if (options.outWidth <= 0 || options.outHeight <= 0) throw new IOException("图片格式无效或已损坏");
     int sample = 1;
     while ((long) (options.outWidth / sample) * (options.outHeight / sample) > MAX_PIXELS
-        || options.outWidth / sample > 8192
-        || options.outHeight / sample > 8192) sample *= 2;
+        || options.outWidth / sample > maxWidth * 2L
+        || options.outHeight / sample > maxHeight * 2L) sample *= 2;
     options.inJustDecodeBounds = false;
     options.inSampleSize = sample;
     Bitmap result = BitmapFactory.decodeByteArray(data, 0, data.length, options);
     if (result == null) throw new IOException("图片无法解码");
+    float scale =
+        Math.min(
+            1f,
+            Math.min((float) maxWidth / result.getWidth(), (float) maxHeight / result.getHeight()));
+    if (scale < 1) {
+      Bitmap small =
+          Bitmap.createScaledBitmap(
+              result,
+              Math.max(1, Math.round(result.getWidth() * scale)),
+              Math.max(1, Math.round(result.getHeight() * scale)),
+              true);
+      if (small != result) result.recycle();
+      result = small;
+    }
     return result;
   }
 

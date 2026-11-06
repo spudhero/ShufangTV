@@ -9,6 +9,13 @@ public final class CoverView extends View {
   private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
   private final String title, author;
   private final int color;
+  private Bitmap image;
+  private Runnable loader;
+  private boolean requested;
+  private final Rect visible = new Rect();
+  private final RectF imageBounds = new RectF();
+  private final android.view.ViewTreeObserver.OnScrollChangedListener scroll = this::loadVisible;
+  private final android.view.ViewTreeObserver.OnGlobalLayoutListener layout = this::loadVisible;
 
   public CoverView(Context context, String title, String author) {
     super(context);
@@ -19,10 +26,67 @@ public final class CoverView extends View {
     setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
   }
 
+  public void setImage(Bitmap bitmap) {
+    image = bitmap;
+    loader = null;
+    stopListening();
+    invalidate();
+  }
+
+  public void loadWhenVisible(Runnable loader) {
+    this.loader = loader;
+    if (isAttachedToWindow()) listen();
+  }
+
+  private void listen() {
+    stopListening();
+    if (loader == null) return;
+    getViewTreeObserver().addOnScrollChangedListener(scroll);
+    getViewTreeObserver().addOnGlobalLayoutListener(layout);
+    post(this::loadVisible);
+  }
+
+  private void loadVisible() {
+    if (!requested && loader != null && isAttachedToWindow() && getGlobalVisibleRect(visible)) {
+      requested = true;
+      loader.run();
+    }
+  }
+
+  private void stopListening() {
+    if (getViewTreeObserver().isAlive()) {
+      getViewTreeObserver().removeOnScrollChangedListener(scroll);
+      getViewTreeObserver().removeOnGlobalLayoutListener(layout);
+    }
+  }
+
+  @Override
+  protected void onAttachedToWindow() {
+    super.onAttachedToWindow();
+    requested = false;
+    listen();
+  }
+
+  @Override
+  protected void onDetachedFromWindow() {
+    stopListening();
+    super.onDetachedFromWindow();
+  }
+
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
     float w = getWidth(), h = getHeight();
+    if (image != null && !image.isRecycled()) {
+      paint.setColor(0xff20231e);
+      canvas.drawRoundRect(0, 0, w, h, 3, 3, paint);
+      float scale = Math.min(w / image.getWidth(), h / image.getHeight());
+      float iw = image.getWidth() * scale, ih = image.getHeight() * scale;
+      paint.setFilterBitmap(true);
+      imageBounds.set((w - iw) / 2, (h - ih) / 2, (w + iw) / 2, (h + ih) / 2);
+      canvas.drawBitmap(image, null, imageBounds, paint);
+      return;
+    }
     paint.setColor(color);
     canvas.drawRoundRect(0, 0, w, h, 3, 3, paint);
     paint.setColor(0x55414b3c);

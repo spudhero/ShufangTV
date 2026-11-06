@@ -1,5 +1,14 @@
 # 原生界面与 Sony 实机图
 
+## 真实封面 · 0.4.0-alpha.3
+
+下图为 Robolectric 原生 View 渲染，使用自行绘制的原创测试封面，经过实际 EPUB 提取 / 缓存 / 首页与书库绑定流程；不是 Sony 实机截图。Sony 上的 16 本真实书籍封面、首页与书库完整画面保存在本地忽略目录，验收汇总见 [封面修复](COVER-VALIDATION-2026-11-06.md)。
+
+| 原生合成测试 | 图像 |
+| --- | --- |
+| 首页 | [1080p](screenshots/covers-2026-11-06/covers-home-1080p.png)、[720p](screenshots/covers-2026-11-06/covers-home-720p.png) |
+| 书库 | [1080p](screenshots/covers-2026-11-06/covers-shelf-1080p.png)、[720p](screenshots/covers-2026-11-06/covers-shelf-720p.png) |
+
 ## UI、听书准备与启动器 · 0.4.0-alpha.2
 
 本轮结果见 [UI 复核](UI-AUDIT-2026-11-06.md)。实机图仅包含原创指南或应用设置；合成渲染与设备画面分别列出。

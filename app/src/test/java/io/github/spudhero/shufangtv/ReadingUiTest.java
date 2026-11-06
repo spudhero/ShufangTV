@@ -464,7 +464,7 @@ public class ReadingUiTest {
     return null;
   }
 
-  static void render(View view, String name) throws Exception {
+  public static void render(View view, String name) throws Exception {
     int width =
         Math.round(
             view.getResources().getConfiguration().screenWidthDp
