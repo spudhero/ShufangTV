@@ -2,6 +2,13 @@
 
 这里记录主干开发版本；是否已公开发布，以 [GitHub Releases](https://github.com/spudhero/ShufangTV/releases) 为准。自动打包下载见 [Actions](https://github.com/spudhero/ShufangTV/actions/workflows/android.yml)。
 
+## 0.5.0-alpha.3 · 版本码 10
+
+- 修复阿里云盘成功响应中 `code:null` 被误判为失败，恢复设备会话和目录读取。
+- 百度扫码长轮询单独使用 40 秒读取超时，保留 45 秒整体时限；兼容当前身份接口、交换后的重试和完整目录结构，修复已确认仍报未登录及目录被过滤的问题。
+- 兼容夸克账号响应省略 `uid` 的情况，从匹配站点的 `__uid` Cookie 取账号编号；仍要求有效文件会话和个人盘验证成功。
+- 增加仅含接口阶段、状态码和异常类型的诊断日志；扫码重试提示不再一律声称网络中断。实机范围见 [网盘修复验证](docs/CLOUD-FIX-2026-11-06.md)。
+
 ## 0.5.0-alpha.2 · 版本码 9
 
 - 独立高清阅读画布、自动 / 兼容模式、实际清晰度与设备详情；原生 4K 布局、高清封面 / SVG，修复高密度裁字。Sony Android 10 仍受最终 1080p 合成限制。

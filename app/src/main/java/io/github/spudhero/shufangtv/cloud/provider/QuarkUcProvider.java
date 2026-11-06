@@ -127,7 +127,7 @@ public final class QuarkUcProvider implements CloudProvider {
     if (!response.optBoolean("success", false)) throw failure("官方账号验证未完成，请重新扫码", response);
     JSONObject data = response.optJSONObject("data");
     if (data == null) throw new IOException(label() + "没有返回账号信息，请重新扫码。");
-    String uid = identifier(data.optString("uid", ""), "账号编号");
+    String uid = accountUid(challenge.account, data);
     if (client(challenge.account)
         .cookieJar()
         .loadForRequest(api("/1/clouddrive/file/sort").build())
@@ -333,6 +333,19 @@ public final class QuarkUcProvider implements CloudProvider {
         || account.id.startsWith("pending-")) {
       throw new IOException("请先扫码连接" + label() + "。");
     }
+  }
+
+  private String accountUid(CloudAccount account, JSONObject data) throws IOException {
+    String uid = data.isNull("uid") ? "" : data.optString("uid", "");
+    if (!uid.isEmpty()) return identifier(uid, "账号编号");
+    // Current Quark account/info can omit uid. Its first-party web client reads __uid from
+    // site cookies; never substitute __kps or another session credential as an account key.
+    HttpUrl origin = HttpUrl.get(webOrigin() + "/");
+    for (Cookie cookie : client(account).cookieJar().loadForRequest(origin)) {
+      if (cookie.name().equals("__uid") && cookie.matches(origin))
+        return identifier(cookie.value(), "账号编号");
+    }
+    throw new IOException(label() + "没有返回账号编号，请重新扫码。");
   }
 
   private void checkApi(JSONObject response) throws IOException {

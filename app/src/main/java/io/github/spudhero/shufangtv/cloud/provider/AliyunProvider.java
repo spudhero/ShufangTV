@@ -509,6 +509,9 @@ public final class AliyunProvider implements CloudProvider {
   }
 
   private static void checkError(JSONObject reply) throws IOException {
+    // The device endpoint includes code:null on successful replies. Android optString converts
+    // JSONObject.NULL to the literal "null", which must not become a provider error code.
+    if (reply.isNull("code")) return;
     String code = reply.optString("code");
     if (code.isEmpty() || "200".equals(code) || "OK".equalsIgnoreCase(code)) return;
     if (code.contains("Token") || code.contains("Login")) throw new SessionFailure(false);
@@ -542,6 +545,7 @@ public final class AliyunProvider implements CloudProvider {
       } catch (JSONException e) {
         throw new IOException("阿里云盘会话暂不可用，请重新扫码", e);
       }
+      io.github.spudhero.shufangtv.cloud.CloudDiagnostics.json(request, reply);
       checkError(reply);
       if (!response.isSuccessful()) throw new IOException("阿里云盘服务请求失败（" + response.code() + "）");
       return reply;

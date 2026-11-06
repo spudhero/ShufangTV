@@ -16,6 +16,7 @@ import com.google.zxing.EncodeHintType;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import io.github.spudhero.shufangtv.cloud.CloudAccount;
+import io.github.spudhero.shufangtv.cloud.CloudDiagnostics;
 import io.github.spudhero.shufangtv.cloud.CloudHttp;
 import io.github.spudhero.shufangtv.cloud.CloudProvider;
 import java.io.ByteArrayOutputStream;
@@ -157,6 +158,7 @@ public final class CloudLoginDialog implements AutoCloseable {
                       schedule(current);
                     });
               } catch (Exception e) {
+                CloudDiagnostics.failure(provider.id(), "qr_begin", e);
                 fail(current, safeMessage(e));
               }
             });
@@ -206,11 +208,12 @@ public final class CloudLoginDialog implements AutoCloseable {
                       }
                     });
               } catch (Exception e) {
+                CloudDiagnostics.failure(provider.id(), "qr_poll", e);
                 handler.post(
                     () -> {
                       if (closed || current != generation) return;
                       if (++transientFailures <= 2) {
-                        status.setText("网络暂时中断，正在重试…");
+                        status.setText("扫码状态获取失败，正在重试…");
                         schedule(current);
                       } else status.setText(safeMessage(e) + "，请刷新二维码重试");
                     });

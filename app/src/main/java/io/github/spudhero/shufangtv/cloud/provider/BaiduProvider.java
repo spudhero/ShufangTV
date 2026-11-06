@@ -95,6 +95,7 @@ public final class BaiduProvider implements CloudProvider {
     requireChallenge(challenge);
     if (System.currentTimeMillis() >= challenge.expiresAt)
       return result(Status.EXPIRED, null, "二维码已过期，请刷新二维码");
+    if (challenge.state.optBoolean("webSessionReady")) return confirmSession(challenge);
     JSONObject reply =
         passport(
             challenge.account,
@@ -176,15 +177,22 @@ public final class BaiduProvider implements CloudProvider {
                 .anyMatch(
                     cookie -> cookie.name().equalsIgnoreCase("BDUSS") && !cookie.value().isEmpty());
     if (!hasSession) throw new IOException("百度扫码已确认，但响应缺少登录会话，请重新扫码");
-    if (redirect != null) visit(challenge.account, redirect);
+    // A browser navigation URL can replace/delete cookies or require scripts. Once an explicit
+    // BDUSS exists, validate it with the personal-drive API instead of navigating that page.
+    put(challenge.state, "webSessionReady", true);
+    return confirmSession(challenge);
+  }
+
+  private LoginResult confirmSession(LoginChallenge challenge) throws IOException {
     JSONObject template = template(challenge.account, true);
     String uk = template.optString("uk");
-    if (uk.isEmpty() || "0".equals(uk)) throw new IOException("百度网盘未返回账号标识，请重新扫码");
+    if (!uk.matches("[1-9][0-9]{0,31}")) throw new IOException("百度网盘未返回账号标识，请重新扫码");
     String name = template.optString("username");
     put(challenge.account.data, "user_id", uk);
     CloudAccount account =
         new CloudAccount(
             id(), id() + ":" + uk, name.isEmpty() ? label() : name, challenge.account.data);
+    challenge.state.remove("webSessionReady");
     return result(Status.AUTHORIZED, account, "百度网盘已连接");
   }
 
@@ -213,9 +221,9 @@ public final class BaiduProvider implements CloudProvider {
               "page",
               Integer.toString(page),
               "num",
-              "100",
-              "folder",
-              directoriesOnly ? "1" : "0");
+              "100");
+      // folder=1 selects a compact upstream schema without isdir/server_filename. Read the
+      // full schema and filter locally, keeping names, file types and pagination consistent.
       checkError(reply);
       JSONArray list = reply.optJSONArray("list");
       if (list == null) throw new IOException("百度网盘目录响应缺少文件列表");
@@ -325,13 +333,25 @@ public final class BaiduProvider implements CloudProvider {
     JSONObject cached = account.data.optJSONObject("template");
     if (!refresh
         && cached != null
+        && !cached.isNull("bdstoken")
         && !cached.optString("bdstoken").isEmpty()
         && account.data.optLong("template_fetched_at") > System.currentTimeMillis() - 10 * 60_000L)
       return cached;
     JSONObject reply = pan(account, "/api/gettemplatevariable", null, "fields", FIELDS);
-    checkError(reply);
-    JSONObject value = reply.optJSONObject("result");
-    if (value == null || value.optString("bdstoken").isEmpty())
+    JSONObject value;
+    if (reply.optInt("errno", -1) == -6) {
+      // Current personal-drive sessions can read files while this legacy template endpoint
+      // reports -6. Verify with the first-party loginStatus API; never infer login from cookies.
+      reply = pan(account, "/api/loginStatus", null);
+      checkError(reply);
+      value = reply.optJSONObject("login_info");
+      if (value != null && !value.isNull("uk_str") && !value.optString("uk_str", "").isEmpty())
+        put(value, "uk", value.optString("uk_str"));
+    } else {
+      checkError(reply);
+      value = reply.optJSONObject("result");
+    }
+    if (value == null || value.isNull("bdstoken") || value.optString("bdstoken").isEmpty())
       throw new IOException("百度网盘会话已失效，请重新扫码");
     put(account.data, "template", value);
     put(account.data, "template_fetched_at", System.currentTimeMillis());
@@ -452,7 +472,9 @@ public final class BaiduProvider implements CloudProvider {
       value = value.substring(open + 1, close).trim();
     }
     try {
-      return new JSONObject(value);
+      JSONObject reply = new JSONObject(value);
+      io.github.spudhero.shufangtv.cloud.CloudDiagnostics.json(request, reply);
+      return reply;
     } catch (JSONException e) {
       throw new IOException("百度网盘返回数据无效，请刷新后重试", e);
     }
@@ -472,6 +494,12 @@ public final class BaiduProvider implements CloudProvider {
   private String body(CloudAccount account, Request first, boolean redirects) throws IOException {
     Request request = first;
     OkHttpClient client = client(account);
+    if (first.url().host().equals("passport.baidu.com")
+        && first.url().encodedPath().equals("/channel/unicast")) {
+      // An unscanned QR normally returns errno=1 after about 30 seconds. Keep the existing
+      // bounded call deadline, but allow the server's long poll to finish before read timeout.
+      client = client.newBuilder().readTimeout(40, java.util.concurrent.TimeUnit.SECONDS).build();
+    }
     for (int hop = 0; hop < 8; hop++) {
       if (!request.url().isHttps() || !isLoginHost(request.url().host()))
         throw new IOException("百度网盘连接地址无效");

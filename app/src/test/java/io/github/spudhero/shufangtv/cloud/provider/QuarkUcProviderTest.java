@@ -126,6 +126,82 @@ public class QuarkUcProviderTest {
   }
 
   @Test
+  public void accountWithoutJsonUidUsesMatchingIdentityCookieAndStillValidatesPersonalDrive()
+      throws Exception {
+    for (boolean uc : new boolean[] {false, true}) {
+      for (String uid : new String[] {"", ",\"uid\":null"}) {
+        Script script =
+            new Script(
+                BEGIN,
+                TICKET,
+                "{\"success\":true,\"data\":{\"nickname\":\"书房读者\"" + uid + "}}",
+                CONFIG);
+        QuarkUcProvider provider = script.provider(uc);
+        CloudProvider.LoginChallenge challenge = provider.beginLogin();
+        sessionCookie(challenge.account, uc, false);
+        identityCookie(challenge.account, uc, uc ? "uc.cn" : "quark.cn", "user_42", false);
+        CloudProvider.LoginResult result = provider.pollLogin(challenge);
+        assertEquals(CloudProvider.Status.AUTHORIZED, result.status);
+        assertEquals((uc ? "uc:" : "quark:") + "user_42", result.account.id);
+        assertEquals(4, script.requests.size());
+        assertEquals("/1/clouddrive/config", script.requests.get(3).url().encodedPath());
+      }
+    }
+  }
+
+  @Test
+  public void absentExpiredForeignOrMalformedIdentityCookieCannotBecomeAnAccountKey()
+      throws Exception {
+    for (String condition :
+        new String[] {"absent", "expired", "foreign", "malformed", "credential"}) {
+      Script script = new Script(BEGIN, TICKET, "{\"success\":true,\"data\":{}}");
+      QuarkUcProvider provider = script.provider(false);
+      CloudProvider.LoginChallenge challenge = provider.beginLogin();
+      sessionCookie(challenge.account, false, false);
+      if (!condition.equals("absent") && !condition.equals("credential"))
+        identityCookie(
+            challenge.account,
+            false,
+            condition.equals("foreign") ? "uc.cn" : "quark.cn",
+            condition.equals("malformed") ? "invalid/account" : "user_42",
+            condition.equals("expired"));
+      if (condition.equals("credential"))
+        CloudHttp.client(challenge.account)
+            .cookieJar()
+            .saveFromResponse(
+                HttpUrl.get("https://pan.quark.cn/"),
+                Arrays.asList(
+                    new Cookie.Builder()
+                        .name("__kps")
+                        .value("secret-session")
+                        .domain("quark.cn")
+                        .path("/")
+                        .secure()
+                        .build()));
+      expectIo(() -> provider.pollLogin(challenge));
+      assertFalse(challenge.account.data.has("uid"));
+      assertEquals(3, script.requests.size());
+    }
+  }
+
+  private static void identityCookie(
+      CloudAccount account, boolean uc, String domain, String value, boolean expired) {
+    CloudHttp.client(account)
+        .cookieJar()
+        .saveFromResponse(
+            HttpUrl.get(uc ? "https://drive.uc.cn/" : "https://pan.quark.cn/"),
+            Arrays.asList(
+                new Cookie.Builder()
+                    .name("__uid")
+                    .value(value)
+                    .domain(domain)
+                    .path("/")
+                    .secure()
+                    .expiresAt(expired ? 1 : System.currentTimeMillis() + 60_000)
+                    .build()));
+  }
+
+  @Test
   public void personalDriveMustAcceptTheSessionBeforeAuthorization() throws Exception {
     for (boolean uc : new boolean[] {false, true}) {
       for (long code : new long[] {31001, 50000}) {

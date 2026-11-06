@@ -55,7 +55,7 @@ EPUB 先读取 ZIP 中央目录，再按 spine 加载当前章节。ZIP 原始�
 6. 在设置页“朗读与语音 → 管理朗读语音”下载约 30.1 MiB 的中文语音包；安装后不依赖系统语音，可断网朗读。首次安装可能需要数分钟。“朗读正文”的语速和停止时间位于“朗读设置”；应用进入后台会暂停，返回后需主动继续。自动翻页与朗读、搜索、选段互斥。
 7. 图片页可在菜单切换“适合整图 / 100% 适合屏宽”。屏宽图片上下移动，左右连续翻阅。PDF 上下滚动，100% 时左右翻页；放大后左右平移，菜单中仍可切换页码。
 
-阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)。主干当前开发版为 `0.5.0-alpha.2`；上面的下载页保留已发布的 `0.2.0-alpha.2`。独立语音的实现、UI 与电视证据见 [语音接入验收](docs/SPEECH-INTEGRATION.md)。真实封面及 16 本实际书籍的本轮结果见 [封面修复验收](docs/COVER-VALIDATION-2026-11-06.md)。UI、图标和听书准备状态见 [UI 复核记录](docs/UI-AUDIT-2026-11-06.md)；实际 SMB 图文、PDF 与 Kindle 格式验收见 [媒体阅读记录](docs/MEDIA-READING-VALIDATION-2026-11-06.md)。前一阶段的 173 项检查及图片缺失结论保留在 [历史 SMB 记录](docs/SMB-DEVICE-VALIDATION-2026-11-06.md)。
+阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)。主干当前开发版为 `0.5.0-alpha.3`；上面的下载页保留已发布的 `0.2.0-alpha.2`。独立语音的实现、UI 与电视证据见 [语音接入验收](docs/SPEECH-INTEGRATION.md)。真实封面及 16 本实际书籍的本轮结果见 [封面修复验收](docs/COVER-VALIDATION-2026-11-06.md)。UI、图标和听书准备状态见 [UI 复核记录](docs/UI-AUDIT-2026-11-06.md)；实际 SMB 图文、PDF 与 Kindle 格式验收见 [媒体阅读记录](docs/MEDIA-READING-VALIDATION-2026-11-06.md)。前一阶段的 173 项检查及图片缺失结论保留在 [历史 SMB 记录](docs/SMB-DEVICE-VALIDATION-2026-11-06.md)。
 
 网盘由本应用直接授权和读取，不需要 CloudDrive2 服务或第三方登录中转。会话失效时重新扫码；阿里令牌支持自动续期。原文件能否按需读取取决于网盘权限和 Range 支持，拒绝时会提示，不自动下载整本书。SMB / WebDAV 的局域网 HTTP 仍可用，网盘连接使用 HTTPS。
 

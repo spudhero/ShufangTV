@@ -286,6 +286,29 @@ public class CloudProviderProtocolTest {
   }
 
   @Test
+  public void aliyunNullErrorCodeStillValidatesDeviceResultAndListsDrives() throws Exception {
+    Fixture fixture =
+        new Fixture(
+            request ->
+                request.url().encodedPath().endsWith("create_session")
+                    ? "{\"code\":null,\"success\":true,\"result\":true}"
+                    : "{\"code\":null,\"resource_drive_id\":\"resource\"}");
+    CloudProvider.ListPage page =
+        new AliyunProvider(fixture.client).list(aliAccount(), "@drives", "", true);
+    assertEquals("resource:root", page.entries.get(0).id);
+    assertEquals(2, fixture.requests.size());
+
+    Fixture rejected = new Fixture(request -> "{\"code\":null,\"success\":true,\"result\":false}");
+    assertTrue(
+        assertThrows(
+                IOException.class,
+                () -> new AliyunProvider(rejected.client).list(aliAccount(), "@drives", "", true))
+            .getMessage()
+            .contains("设备会话"));
+    assertEquals(1, rejected.requests.size());
+  }
+
+  @Test
   public void aliyunDirectoryPaginationKeepsOpaqueDriveId() throws Exception {
     CloudAccount account = aliAccount();
     account
@@ -405,6 +428,41 @@ public class CloudProviderProtocolTest {
   }
 
   @Test
+  public void baiduOnlyQrPollAllowsTheNormalThirtySecondServerWait() throws Exception {
+    AtomicInteger polls = new AtomicInteger(), ordinary = new AtomicInteger();
+    OkHttpClient transport =
+        new OkHttpClient.Builder()
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
+            .addInterceptor(
+                chain -> {
+                  boolean poll = chain.request().url().encodedPath().equals("/channel/unicast");
+                  assertEquals(poll ? 40_000 : 30_000, chain.readTimeoutMillis());
+                  if (poll) polls.incrementAndGet();
+                  else ordinary.incrementAndGet();
+                  String value =
+                      poll
+                          ? "{\"errno\":1}"
+                          : chain.request().url().host().equals("pan.baidu.com")
+                              ? "<html></html>"
+                              : "{\"errno\":0,\"sign\":\"synthetic-sign\",\"imgurl\":\"https://passport.baidu.com/qr.png\"}";
+                  return new Response.Builder()
+                      .request(chain.request())
+                      .protocol(Protocol.HTTP_1_1)
+                      .code(200)
+                      .message("fixture")
+                      .body(ResponseBody.create(value, MediaType.get("application/json")))
+                      .build();
+                })
+            .build();
+    BaiduProvider provider = new BaiduProvider(transport);
+    CloudProvider.LoginChallenge qr = provider.beginLogin();
+    assertEquals(CloudProvider.Status.WAITING, provider.pollLogin(qr).status);
+    assertEquals(1, polls.get());
+    assertEquals(2, ordinary.get());
+  }
+
+  @Test
   public void baiduConfirmedExchangesTicketAndValidatesOwnWebSession() throws Exception {
     CloudAccount account = baiduAccount();
     Fixture fixture =
@@ -420,7 +478,9 @@ public class CloudProviderProtocolTest {
                 return "fixtureCallback({\"errInfo\":{\"no\":\"0\"},\"data\":{\"u\":\"https://pan.baidu.com/disk/main\","
                            + "\"session\":{\"bduss\":\"synthetic-body-bduss\",\"stoken\":\"synthetic-body-stoken\"}}});";
               }
-              if (path.equals("/disk/main")) return "<html>synthetic session</html>";
+              if (path.equals("/disk/main"))
+                throw new AssertionError(
+                    "Browser navigation must not replace the exchanged session");
               return new JSONObject()
                   .put("errno", 0)
                   .put("result", account.data.getJSONObject("template"))
@@ -438,7 +498,110 @@ public class CloudProviderProtocolTest {
     assertTrue(
         cookies.stream()
             .anyMatch(c -> c.name().equals("BDUSS") && c.value().equals("synthetic-body-bduss")));
-    assertEquals(4, fixture.requests.size());
+    assertEquals(3, fixture.requests.size());
+  }
+
+  @Test
+  public void baiduRetriesPersonalSessionValidationWithoutConsumingTheQrTicketAgain()
+      throws Exception {
+    CloudAccount account = baiduAccount();
+    AtomicInteger polls = new AtomicInteger(),
+        exchanges = new AtomicInteger(),
+        checks = new AtomicInteger();
+    Fixture fixture =
+        new Fixture(
+            request -> {
+              String path = request.url().encodedPath();
+              if (path.equals("/channel/unicast")) {
+                polls.incrementAndGet();
+                return "{\"errno\":0,\"channel_v\":{\"status\":0,\"v\":\"synthetic-ticket\"}}";
+              }
+              if (path.endsWith("qrbdusslogin")) {
+                exchanges.incrementAndGet();
+                return "{\"errInfo\":{\"no\":0},\"data\":{\"bduss\":\"synthetic-bduss\"}}";
+              }
+              assertEquals("/api/gettemplatevariable", path);
+              if (checks.incrementAndGet() == 1)
+                throw new java.net.SocketTimeoutException("fixture");
+              return new JSONObject()
+                  .put("errno", 0)
+                  .put("result", account.data.getJSONObject("template"))
+                  .toString();
+            });
+    BaiduProvider provider = new BaiduProvider(fixture.client);
+    CloudProvider.LoginChallenge qr = challenge("baidu", account);
+    assertThrows(IOException.class, () -> provider.pollLogin(qr));
+    assertTrue(qr.state.optBoolean("webSessionReady"));
+    assertEquals(CloudProvider.Status.AUTHORIZED, provider.pollLogin(qr).status);
+    assertFalse(qr.state.has("webSessionReady"));
+    assertEquals(1, polls.get());
+    assertEquals(1, exchanges.get());
+    assertEquals(2, checks.get());
+  }
+
+  @Test
+  public void baiduLegacyMinusSixUsesVerifiedCurrentPersonalIdentityAndThenReadsDirectory()
+      throws Exception {
+    CloudAccount account = baiduAccount();
+    account.data.remove("template");
+    Fixture fixture =
+        new Fixture(
+            request -> {
+              switch (request.url().encodedPath()) {
+                case "/channel/unicast":
+                  return "{\"errno\":0,\"channel_v\":{\"status\":0,\"v\":\"synthetic-ticket\"}}";
+                case "/v3/login/main/qrbdusslogin":
+                  return "{\"errInfo\":{\"no\":0},\"data\":{\"bduss\":\"synthetic-bduss\"}}";
+                case "/api/gettemplatevariable":
+                  return "{\"errno\":-6}";
+                case "/api/loginStatus":
+                  return "{\"errno\":0,\"login_info\":{\"bdstoken\":\"synthetic-current-token\",\"uk_str\":\"123456789012345678\",\"username\":\"书房读者\"}}";
+                case "/api/list":
+                  assertEquals("synthetic-current-token", request.url().queryParameter("bdstoken"));
+                  return "{\"errno\":0,\"list\":[{\"path\":\"/书籍\",\"server_filename\":\"书籍\",\"isdir\":1}]}";
+                default:
+                  throw new AssertionError("Unexpected request phase");
+              }
+            });
+    BaiduProvider provider = new BaiduProvider(fixture.client);
+    CloudProvider.LoginResult result = provider.pollLogin(challenge("baidu", account));
+    assertEquals(CloudProvider.Status.AUTHORIZED, result.status);
+    assertEquals("baidu:123456789012345678", result.account.id);
+    assertEquals("/书籍", provider.list(result.account, "/", "", true).entries.get(0).id);
+    assertEquals(5, fixture.requests.size());
+  }
+
+  @Test
+  public void baiduIdentityFallbackMustRejectUnauthenticatedOrIncompleteCurrentResponses()
+      throws Exception {
+    for (String current :
+        new String[] {
+          "{\"errno\":-6}",
+          "{\"errno\":0,\"login_info\":{\"uk\":123}}",
+          "{\"errno\":0,\"login_info\":{\"bdstoken\":\"synthetic-token\"}}"
+        }) {
+      CloudAccount account = baiduAccount();
+      account.data.remove("template");
+      Fixture fixture =
+          new Fixture(
+              request -> {
+                switch (request.url().encodedPath()) {
+                  case "/channel/unicast":
+                    return "{\"errno\":0,\"channel_v\":{\"status\":0,\"v\":\"synthetic-ticket\"}}";
+                  case "/v3/login/main/qrbdusslogin":
+                    return "{\"errInfo\":{\"no\":0},\"data\":{\"bduss\":\"synthetic-bduss\"}}";
+                  case "/api/gettemplatevariable":
+                    return "{\"errno\":-6}";
+                  case "/api/loginStatus":
+                    return current;
+                  default:
+                    throw new AssertionError("Unexpected request phase");
+                }
+              });
+      assertThrows(
+          IOException.class,
+          () -> new BaiduProvider(fixture.client).pollLogin(challenge("baidu", account)));
+    }
   }
 
   @Test
@@ -668,6 +831,23 @@ public class CloudProviderProtocolTest {
     AliyunProvider provider = new AliyunProvider(fixture.client);
     assertEquals("drive:book", provider.list(account, "drive:root", "", false).entries.get(0).id);
     assertThrows(IOException.class, () -> provider.list(account, "drive:root", "same", false));
+  }
+
+  @Test
+  public void baiduFolderPickerUsesFullEntriesInsteadOfTheCompactFolderSchema() throws Exception {
+    Fixture fixture =
+        new Fixture(
+            request -> {
+              if ("1".equals(request.url().queryParameter("folder")))
+                return "{\"errno\":0,\"list\":[{\"path\":\"/书籍\",\"fs_id\":123,\"dir_empty\":0}]}";
+              return "{\"errno\":0,\"has_more\":1,\"list\":[{\"path\":\"/书籍\",\"server_filename\":\"书籍\",\"isdir\":1},{\"path\":\"/说明.txt\",\"server_filename\":\"说明.txt\",\"isdir\":0}]}";
+            });
+    CloudProvider.ListPage page =
+        new BaiduProvider(fixture.client).list(baiduAccount(), "/", "", true);
+    assertEquals(1, page.entries.size());
+    assertEquals("书籍", page.entries.get(0).name);
+    assertTrue(page.entries.get(0).directory);
+    assertEquals("2", page.nextPageToken);
   }
 
   @Test

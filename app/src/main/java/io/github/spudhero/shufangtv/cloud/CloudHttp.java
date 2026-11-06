@@ -33,6 +33,7 @@ public final class CloudHttp {
   public static OkHttpClient client(CloudAccount account) {
     return BASE.newBuilder()
         .cookieJar(new SessionCookies(account))
+        .addInterceptor(CloudDiagnostics.network(account.providerId))
         .addInterceptor(
             chain ->
                 chain.proceed(
@@ -63,7 +64,9 @@ public final class CloudHttp {
         bytes.write(buffer, 0, n);
       }
       try {
-        return new JSONObject(bytes.toString("UTF-8"));
+        JSONObject reply = new JSONObject(bytes.toString("UTF-8"));
+        CloudDiagnostics.json(request, reply);
+        return reply;
       } catch (JSONException e) {
         throw new IOException("网盘会话暂不可用，请刷新或重新扫码");
       }
