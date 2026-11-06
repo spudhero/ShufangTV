@@ -84,7 +84,13 @@ python3 scripts/configure-release-secrets.py --update-existing
 
 CI 检查不能替代电视实测：原生 PDF / Kindle、离线语音的设备结果继续以 [验证记录](VALIDATION.md) 和专项实机报告为准；alpha.3 的网盘登录与目录结果另见[专项修复记录](CLOUD-FIX-2026-11-06.md)。发布流程的建立没有改变阅读逻辑。
 
-## 最新发布包验证（alpha.3）
+## 最新发布包验证（alpha.4）
+
+- [GitHub CI #42241752763](https://github.com/spudhero/ShufangTV/actions/runs/42241752763) 成功，来源提交 `0ce97db7686f4cf507849ce357f9f032b7391296`；debug 测试 / lint / 构建、release lint / 构建、签名及上传全部通过。本地同版 234 项测试通过，debug / release lint 均 0 错误、19 警告。
+- [发布签名产物](https://github.com/spudhero/ShufangTV/actions/runs/42241752763/artifacts/13517111241) 已下载复核：`0.5.0-alpha.4` / 11、非 debug、四 ABI 各 5 个必需原生库、zipalign、APK v2/v3、固定发布证书及 SHA256SUMS 均通过；完整归档哈希与 Actions 提供值一致，只有 APK、元数据、校验和与公开证书。
+- APK 为 `ShufangTV-0.5.0-alpha.4-release.apk`，88,823,611 字节；SHA-256 为 `aa47970c3428d8d93833bd6d3304d1c2d0a5ae3a668199f68650544c1fefefa1`。电视保留原开发签名，真实目录 / PDF 阅读结果见[书籍显示修复](CLOUD-BOOKS-2026-11-06.md)。
+
+## 前版发布包验证（alpha.3）
 
 - [GitHub CI #42231725790](https://github.com/spudhero/ShufangTV/actions/runs/42231725790) 成功，来源提交 `59a58c141decf66640538ebebd2c794cd7057262`；debug 测试 / lint / 构建、release lint / 构建、签名及产物上传全部通过。本地同版 233 项测试通过，debug / release lint 均 0 错误、19 警告。
 - [发布签名产物](https://github.com/spudhero/ShufangTV/actions/runs/42231725790/artifacts/13511180383) 已下载复核：`0.5.0-alpha.3` / 10、非 debug、四 ABI 各 5 个必需原生库、zipalign、APK v2/v3、固定发布证书及 SHA256SUMS 均通过。完整归档 SHA-256 与 Actions 提供值一致，归档只有 APK、元数据、校验和与公开证书。
