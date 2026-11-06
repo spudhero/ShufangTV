@@ -89,4 +89,8 @@ CI 检查不能替代电视实测：原生 PDF / Kindle、离线语音的设备�
 - 本地 224 项测试通过；debug / release lint 各 0 错误、19 警告；两种构建成功。
 - 本地发布签名包的四 ABI、非 debug、APK v2/v3、证书与 zipalign 验证通过。
 - 防止覆盖已有密钥、无凭据打包、误用 debug 包、错误证书、错误版本标签和单个 ABI 缺失原生库等失败路径已检查。
-- GitHub 首次实际运行结果在流程启用后补充；不能把本地成功等同于 GitHub 构建成功。
+- [GitHub 实际运行 #42211139583](https://github.com/spudhero/ShufangTV/actions/runs/42211139583) 成功；来源提交 `8feeae286a162bf70781995f17d568530a937072`，触发账号 spudhero。云端 core 53 + app 171 = 224 项测试，失败 / 跳过均为 0；debug / release lint 各 0 错误、19 警告。
+- [发布签名产物](https://github.com/spudhero/ShufangTV/actions/runs/42211139583/artifacts/13499346140) 已下载独立复核：版本 9、API 26–36、非 debug、四 ABI 及每档 5 个必需原生库、zipalign、v2/v3、固定证书和 SHA256SUMS 全部通过；归档只有 APK、元数据、校验和与公开证书，没有私钥。
+- 云端 APK 为 `ShufangTV-0.5.0-alpha.2-release.apk`，88,807,227 字节（约 84.7 MiB）；SHA-256 为 `1880b8a9c9e1e3134f14e18e6f3b095ad9ce65a5f75bc131b685bcbbe3fde21a`。APK 哈希和签名证书指纹是两种不同校验；不要求不同平台构建得到完全相同的 APK 字节。
+- runner 的 sdkmanager 未加入 PATH，现通过 ANDROID_HOME 的明确路径安装工具链。初次上传工作流使用的仓库级临时 SSH 凭据已经撤销，未改变账号的长期令牌权限；后续修改工作流仍需要具有 workflow 写入能力的授权 Git 凭据。
+- GitHub 有 Gradle 8.13 支持周期提示；本轮保留现有 AGP / Gradle 组合，兼容升级作为独立维护任务，不在签名配置中混入工具链大版本变更。

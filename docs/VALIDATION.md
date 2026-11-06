@@ -1,6 +1,6 @@
 # 验证记录
 
-本轮构建流程补充 debug / release 两种构建与 lint、发布证书 / APK v2/v3 / 四 ABI / zipalign 检查；224 项测试保留通过。GitHub 自动打包证据见 [发布与 CI](RELEASE-AND-CI.md)。没有修改阅读逻辑或替换电视安装，前轮 5 项实机结果继续保留。
+本轮构建流程补充 debug / release 两种构建与 lint、发布证书 / APK v2/v3 / 四 ABI / zipalign 检查；224 项测试保留通过。GitHub [运行 #42211139583](https://github.com/spudhero/ShufangTV/actions/runs/42211139583) 已通过同样的 224 项检查；云端签名 APK 已下载并独立核对证书、校验和、四 ABI 与非 debug 状态，见 [发布与 CI](RELEASE-AND-CI.md)。没有修改阅读逻辑或替换电视安装，前轮 5 项实机结果继续保留。
 
 当前 `0.5.0-alpha.2` / 版本码 9：**224 项 JVM / 原生界面测试**（core 53、app 171）、**5 项 Sony 设备测试**通过；lint 0 错误、19 警告。新增 4K 原生布局、独立阅读缓冲区与逐像素验证；Sony 最终合成仍受 1080p 系统限制，完整结论见 [4K 验证](DISPLAY-4K-2026-11-06.md)。下文保留前版记录。
 
