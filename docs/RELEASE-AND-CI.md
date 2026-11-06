@@ -1,6 +1,6 @@
 # 发布签名与 GitHub 自动打包
 
-更新：2026-11-06。应用版本仍为 `0.5.0-alpha.2` / 9；这次补齐分发流程，不代表 alpha 已达到稳定版标准。已有 GitHub Releases、APK、标签和开发密钥保持原样。
+更新：2026-11-06。当前应用版本为 `0.5.0-alpha.3` / 10；固定发布签名与自动打包流程已建立，不代表 alpha 已达到稳定版标准。已有 GitHub Releases、APK、标签和开发密钥保持原样。
 
 ## 自动构建入口
 
@@ -78,13 +78,19 @@ python3 scripts/configure-release-secrets.py --update-existing
 
 ## 安装与升级边界
 
-电视当前 `0.5.0-alpha.2` 是原开发签名，证书 SHA-256 为 `9aeb612cabfb2d39bd0d7b40f212a562c0aee3440a9bd4b84e376f335ab6e0e0`。新 release 签名与其不同，Android 会拒绝直接覆盖安装；同一包名和更大版本号也不能解决签名不一致。
+电视当前 `0.5.0-alpha.3` 是原开发签名，证书 SHA-256 为 `9aeb612cabfb2d39bd0d7b40f212a562c0aee3440a9bd4b84e376f335ab6e0e0`。新 release 签名与其不同，Android 会拒绝直接覆盖安装；同一包名和更大版本号也不能解决签名不一致。
 
-本次没有卸载或更换电视上的开发版本。正式切换签名前应确认书库、书签、来源及语音配置的迁移方式；应用目前没有完整数据导入 / 导出能力，不应通过卸载来进行无备份的迁移。此前的 debug APK 和 GitHub Releases 保留原证书与历史记录。后续 release 构建必须持续使用本次 release 密钥，并在更新应用时递增 versionCode。
+电视沿用原开发签名覆盖升级，未卸载或切换到发布签名。正式切换签名前应确认书库、书签、来源及语音配置的迁移方式；应用目前没有完整数据导入 / 导出能力，不应通过卸载来进行无备份的迁移。此前的 debug APK 和 GitHub Releases 保留原证书与历史记录。后续 release 构建必须持续使用本次 release 密钥，并在更新应用时递增 versionCode。
 
-CI 检查不能替代电视实测：原生 PDF / Kindle、离线语音的设备结果继续以 [验证记录](VALIDATION.md) 和专项实机报告为准。本次只改构建工具和文档，未改变阅读逻辑。
+CI 检查不能替代电视实测：原生 PDF / Kindle、离线语音的设备结果继续以 [验证记录](VALIDATION.md) 和专项实机报告为准；alpha.3 的网盘登录与目录结果另见[专项修复记录](CLOUD-FIX-2026-11-06.md)。发布流程的建立没有改变阅读逻辑。
 
-## 本轮证据
+## 最新发布包验证（alpha.3）
+
+- [GitHub CI #42231725790](https://github.com/spudhero/ShufangTV/actions/runs/42231725790) 成功，来源提交 `59a58c141decf66640538ebebd2c794cd7057262`；debug 测试 / lint / 构建、release lint / 构建、签名及产物上传全部通过。本地同版 233 项测试通过，debug / release lint 均 0 错误、19 警告。
+- [发布签名产物](https://github.com/spudhero/ShufangTV/actions/runs/42231725790/artifacts/13511180383) 已下载复核：`0.5.0-alpha.3` / 10、非 debug、四 ABI 各 5 个必需原生库、zipalign、APK v2/v3、固定发布证书及 SHA256SUMS 均通过。完整归档 SHA-256 与 Actions 提供值一致，归档只有 APK、元数据、校验和与公开证书。
+- APK 为 `ShufangTV-0.5.0-alpha.3-release.apk`，88,823,611 字节；SHA-256 为 `b3191f9003a541696c3b0adb6dad3a9042d9a2fa83aa5f55dd955837caf4382e`。该发布包未安装到仍使用原开发签名的电视；网盘修复的电视验证使用原签名覆盖升级包，见[实机记录](CLOUD-FIX-2026-11-06.md)。
+
+## 初次发布流程验证（alpha.2，历史证据）
 
 - 本地 224 项测试通过；debug / release lint 各 0 错误、19 警告；两种构建成功。
 - 本地发布签名包的四 ABI、非 debug、APK v2/v3、证书与 zipalign 验证通过。
