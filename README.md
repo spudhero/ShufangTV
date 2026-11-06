@@ -6,7 +6,7 @@
 
 这是独立编写的新项目，不是原 TVReader 的汉化补丁。UI 延续通过 OpenDesign Cloud / Local Codex 完成的“暗色书房”设计，并以原生 Android View 实现。新增网盘来源、扫码、目录选择与阅读方式面板已按设计稿优化；[设计原型](design/README.md)与[落地说明](docs/UI-DESIGN.md)随源码保存。
 
-[下载测试版 APK](https://github.com/spudhero/ShufangTV/releases/tag/v0.2.0-alpha.2) · [网盘连接说明](docs/CLOUD-CONNECTIONS.md) · [验证记录](docs/VALIDATION.md) · [原生界面图](docs/SCREENSHOTS.md)
+[历史测试版 APK](https://github.com/spudhero/ShufangTV/releases/tag/v0.2.0-alpha.2) · [最新自动构建](https://github.com/spudhero/ShufangTV/actions/workflows/android.yml) · [文档导航](docs/README.md) · [网盘连接说明](docs/CLOUD-CONNECTIONS.md) · [验证记录](docs/VALIDATION.md) · [原生界面图](docs/SCREENSHOTS.md)
 
 ![首页：原生视图渲染](docs/screenshots/home.png)
 
@@ -72,7 +72,9 @@ cd ShufangTV
 
 设备回归另运行 `:app:assembleDebugAndroidTest`。先在应用内安装语音包，再安装测试 APK，执行 `adb shell am instrument -w io.github.spudhero.shufangtv.test/androidx.test.runner.AndroidJUnitRunner`，覆盖阅读原生库与离线语音。覆盖安装使用相同开发密钥；可通过 `-Pshufang.debugKeystore=/path/to/debug.keystore` 指定已有测试密钥。
 
-安装包：`app/build/outputs/apk/debug/app-debug.apk`。这是使用开发签名的测试版本，正式分发需自行配置发布签名。仓库提供 [GitHub Actions 模板](ci/android.yml)，有工作流管理权限时将它放入 `.github/workflows/`，可自动构建并上传 APK、测试报告和原生界面渲染结果。
+开发安装包：`app/build/outputs/apk/debug/app-debug.apk`。发布签名包通过 [GitHub Actions](https://github.com/spudhero/ShufangTV/actions/workflows/android.yml) 自动生成：main 推送、匹配版本的标签或手动运行，检查通过后上传 APK、校验和、源码提交元数据及公开证书；PR 只检查，不接触发布密钥。只修改文档 / 设计时跳过分支构建。
+
+固定 release 密钥已生成并配置到 GitHub Secrets，私钥不进入源码或构建产物。**发布签名与现有电视的开发签名不同，不能直接覆盖安装；本次保留电视原安装和数据。** 本地签名、下载产物、备份恢复及切换限制见 [发布与 CI](docs/RELEASE-AND-CI.md)。应用版本与变更见 [变更记录](CHANGELOG.md)。自动构建不会替换已有 GitHub Releases。
 
 ## 当前边界
 

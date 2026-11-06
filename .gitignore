@@ -11,8 +11,12 @@ local.properties
 *.aab
 *.jks
 *.keystore
+*.p12
+*.pfx
 *.hprof
 private-analysis/
 local-test-data/
 artifacts/
 .codebase-memory/
+__pycache__/
+*.pyc

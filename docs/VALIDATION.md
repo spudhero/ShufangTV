@@ -1,5 +1,7 @@
 # 验证记录
 
+本轮构建流程补充 debug / release 两种构建与 lint、发布证书 / APK v2/v3 / 四 ABI / zipalign 检查；224 项测试保留通过。GitHub 自动打包证据见 [发布与 CI](RELEASE-AND-CI.md)。没有修改阅读逻辑或替换电视安装，前轮 5 项实机结果继续保留。
+
 当前 `0.5.0-alpha.2` / 版本码 9：**224 项 JVM / 原生界面测试**（core 53、app 171）、**5 项 Sony 设备测试**通过；lint 0 错误、19 警告。新增 4K 原生布局、独立阅读缓冲区与逐像素验证；Sony 最终合成仍受 1080p 系统限制，完整结论见 [4K 验证](DISPLAY-4K-2026-11-06.md)。下文保留前版记录。
 
 当前开发版 `0.5.0-alpha.1` / 版本码 8：**215 项 JVM / 原生界面测试**（core 50、app 165）、**4 项 Sony 设备测试**通过，lint 0 错误、22 警告。没有系统 TTS 的 Sony 已通过离线中文 JNI / AudioTrack、语速和取消测试。实际样音、下载与 UI 证据见 [独立语音验收](SPEECH-INTEGRATION.md)。下文保留旧版结论，不代表当前仍依赖系统语音。
@@ -36,7 +38,7 @@
 
 EPUB 的受控测试文件含 8 MiB 未读内容，元数据与第一章合计传输断言小于 512 KiB。在线 TXT 的集成测试同时验证 TV 私有书籍目录没有生成整本文件。相关用例分别为 `OnlineReadingTest` 和 `OnlineOfflineFlowTest`。
 
-当前 GitHub 登录缺少工作流写入权限，自动构建配置以 `ci/android.yml` 模板提供，尚未启用；本记录不是 GitHub CI 通过声明。
+早期验证时 GitHub 登录缺少工作流写入权限，只提供 `ci/android.yml` 模板；这条描述属于当时的历史状态。当前实际工作流、发布签名及云端运行证据统一记录在 [发布与 CI](RELEASE-AND-CI.md)，不能将本地检查当作 CI 成功。
 
 ## 可复核结果
 
