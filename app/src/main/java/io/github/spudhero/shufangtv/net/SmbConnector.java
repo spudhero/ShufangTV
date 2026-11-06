@@ -12,6 +12,7 @@ import com.hierynomus.protocol.transport.TransportException;
 import com.hierynomus.smbj.SMBClient;
 import com.hierynomus.smbj.SmbConfig;
 import com.hierynomus.smbj.auth.AuthenticationContext;
+import com.hierynomus.smbj.common.SMBRuntimeException;
 import com.hierynomus.smbj.connection.Connection;
 import com.hierynomus.smbj.session.Session;
 import com.hierynomus.smbj.share.Directory;
@@ -219,6 +220,15 @@ final class SmbConnector implements LibraryConnector {
         transientFailure ? "SMB 网络连接中断，请重试。" : "SMB 读取失败，请检查服务器和本机存储。", transientFailure, failure);
   }
 
+  static NetworkFailure translateReadFailure(RuntimeException failure, boolean shareConnected) {
+    // SMBJ can close a share on idle timeout while Connection.isConnected() stays true.
+    // Its subsequent read throws a cause-less runtime exception rather than a transport error.
+    if (!shareConnected
+        && failure.getClass() == SMBRuntimeException.class
+        && failure.getCause() == null) return new NetworkFailure("SMB 连接中断，正在重新连接。", true, failure);
+    return translate(failure);
+  }
+
   private static final class SmbRemoteFile implements RemoteFile {
     final SourceConfig config;
     final String path;
@@ -266,9 +276,10 @@ final class SmbConnector implements LibraryConnector {
               return count;
             } catch (RuntimeException failure) {
               Handle previous = handle;
+              boolean shareConnected = previous == null || previous.share.isConnected();
               handle = null;
               if (previous != null) previous.abort();
-              throw translate(failure);
+              throw translateReadFailure(failure, shareConnected);
             } catch (IOException failure) {
               Handle previous = handle;
               handle = null;

@@ -2,6 +2,8 @@
 
 日期：2026-11-06；开发版 0.3.0-alpha.1，版本码 4。
 
+后续同日已完成真实 Huawei SMB 书库抽查并修复空闲读取、长标题和图片章节提示；当前检查数 **173**，最终安装包及验收缺口见 [SMB 实机补充验证](SMB-DEVICE-VALIDATION-2026-11-06.md)。下文 170 项及 Sony 安装包校验值保留为前一阶段历史证据。
+
 ## 分支集成
 
 原生云盘来源分支 `codex/native-cloud-sources` 与旧 main 同在 `81a3c0e`。云盘 UI 分支 `codex/cloud-ui-delivery` 的 `d40dfab` 已在 origin/main。先独立提交阅读功能 `5c92582`，再将本地 main 快进到 origin/main，使用 `880db22` 合并阅读分支 `codex/cloud-ui-polish`。没有文本冲突；仍检查共享 MainActivity 的来源、书库、收藏、导出、阅读和返回行为。所有现有本地分支均已包含在主干，保留分支与其他工作区。

@@ -13,6 +13,33 @@ import org.junit.Test;
 
 public class SmbRetryPolicyTest {
   @Test
+  public void idleClosedShareRetriesOnceWithoutTreatingAllRuntimeErrorsAsNetworkFailures()
+      throws Exception {
+    RuntimeException closed =
+        new com.hierynomus.smbj.common.SMBRuntimeException("DiskShare has already been closed");
+    NetworkFailure failure = SmbConnector.translateReadFailure(closed, false);
+    assertTrue(failure.retryable);
+    int[] attempts = {0};
+    assertEquals(
+        "fresh share",
+        NetworkRetry.run(
+            () -> {
+              if (attempts[0]++ == 0) throw failure;
+              return "fresh share";
+            }));
+    assertEquals(2, attempts[0]);
+    assertFalse(SmbConnector.translateReadFailure(closed, true).retryable);
+    assertFalse(
+        SmbConnector.translateReadFailure(new IllegalStateException("local"), false).retryable);
+    SMBApiException auth =
+        new SMBApiException(0xc000006dL, SMB2MessageCommandCode.SMB2_SESSION_SETUP, "auth", null);
+    assertFalse(SmbConnector.translateReadFailure(auth, false).retryable);
+    SMBApiException path =
+        new SMBApiException(0xc0000034L, SMB2MessageCommandCode.SMB2_CREATE, "path", null);
+    assertFalse(SmbConnector.translateReadFailure(path, false).retryable);
+  }
+
+  @Test
   public void disconnectedTransportCanCreateOneFreshSession() throws Exception {
     NetworkFailure disconnected =
         SmbConnector.translate(new TransportException(new SocketException("reset")));

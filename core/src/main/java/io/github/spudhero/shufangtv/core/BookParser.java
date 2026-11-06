@@ -265,7 +265,11 @@ public final class BookParser {
     if (text.getBytes(StandardCharsets.UTF_8).length > chapterLimit) {
       throw new IOException("该章节正文超过单章读取上限。");
     }
-    return new BookDocument.Chapter(title, text);
+    boolean hasImages =
+        body.getAllElements().stream()
+            .anyMatch(
+                e -> "img".equals(local(e.normalName())) || "svg".equals(local(e.normalName())));
+    return new BookDocument.Chapter(title, text, hasImages);
   }
 
   /**

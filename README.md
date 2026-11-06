@@ -50,7 +50,7 @@ EPUB 先读取 ZIP 中央目录，再按 spine 加载当前章节。ZIP 原始�
 5. “收藏正文段落”用上下键选择，确定键保存并写备注；在“我的书签”选择卡片管理和回到原文，“导出收藏”选择格式后保存。
 6. “朗读正文”的语速和停止时间位于“朗读设置”；应用进入后台会暂停，返回后需主动继续。自动翻页与朗读、搜索、选段互斥。
 
-阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)、[工作区验证](docs/READING-VALIDATION.md)。主干当前开发版为 `0.3.0-alpha.1`；上面的下载页保留已发布的 `0.2.0-alpha.2`。全部现有分支已合入主干，170 项检查通过；Sony BRAVIA 实测在线 EPUB/TXT/PDF、局部搜索、段落收藏、自动翻页及关闭服务后的离线冷启动。详见 [集成与实机记录](docs/INTEGRATION-2026-11-06.md) 和 [项目进度](docs/PROGRESS.md)。
+阅读体验增量与 OpenDesign UI 优化见 [任务计划](docs/READING-ROADMAP.md)、[界面验收与对比](docs/READING-UI-REVIEW.md)、[工作区验证](docs/READING-VALIDATION.md)。主干当前开发版为 `0.3.0-alpha.1`；上面的下载页保留已发布的 `0.2.0-alpha.2`。全部现有分支已合入主干，173 项检查通过；Sony BRAVIA 实测在线 EPUB/TXT/PDF、局部搜索、段落收藏、自动翻页及关闭服务后的离线冷启动。真实 Huawei SMB 抽查通过 9 本文字 EPUB 的正文/跳章/翻页与 2 本 PDF 的加载/跳页；漫画图片和 PDF 远距离可读性仍有明确缺口。详见 [集成与实机记录](docs/INTEGRATION-2026-11-06.md)、[SMB 实机结果](docs/SMB-DEVICE-VALIDATION-2026-11-06.md) 和 [项目进度](docs/PROGRESS.md)。
 
 网盘由本应用直接授权和读取，不需要 CloudDrive2 服务或第三方登录中转。会话失效时重新扫码；阿里令牌支持自动续期。原文件能否按需读取取决于网盘权限和 Range 支持，拒绝时会提示，不自动下载整本书。SMB / WebDAV 的局域网 HTTP 仍可用，网盘连接使用 HTTPS。
 
@@ -75,7 +75,7 @@ cd ShufangTV
 - 朗读需要支持中文的系统 TTS 引擎；首版仅前台持续播放。书单为单层、每书一个归属。
 - 本地/USB 与外部导出需有可用的系统文档界面；Sony 上只有占位组件时显示恢复提示，收藏仍保留。远程文件提供方若不能 seek，会明确失败。
 - 四家网盘匿名二维码初始化已核对；真实账号扫码后的目录、会话续期和文件读取仍待验收。协议夹具通过不等于真实账号已通过。
-- Sony Android 10 上的在线 PDF 代理文件描述符与按需读取已验证；真实 NAS/SMB、中文发声、有效文档提供器上的文件交接和物理遥控器长按仍待对应条件验收。
+- Sony Android 10 上的在线 PDF 代理文件描述符、真实 NAS/SMB 按需读取及空闲重连已验证；漫画 EPUB 图片尚不渲染，PDF 整页正文偏小。中文发声、有效文档提供器上的文件交接和物理遥控器长按仍待对应条件验收。
 
 见 [架构与存储规则](docs/ARCHITECTURE.md)、[验证记录](docs/VALIDATION.md)、[阅读行为分析](docs/REFERENCE-BEHAVIOR.md)、[CD2 网盘参考边界](docs/CLOUD-REFERENCE.md)、[第三方依赖](THIRD-PARTY-NOTICES.md)。网盘流程也依据用户授权的本地 NetVplayer 源码核对，公开仓库只记录行为差异和自有实现；不包含该项目源码、参考 APK、反编译源码、凭据、用户书籍或签名密钥。
 

@@ -29,6 +29,120 @@ import org.robolectric.util.ReflectionHelpers;
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ReadingUiTest {
   @Test
+  public void
+      imageAndMixedChaptersExplainTheLimitationWithoutChangingTextAnchorsOrBlockingPlainText()
+          throws Exception {
+    LibraryStore library = new LibraryStore(RuntimeEnvironment.getApplication());
+    BookRecord book = new BookRecord();
+    book.title = "合成图片与文字章节";
+    File file = library.file(book);
+    book.offlineFile = file.getName();
+    java.util.Map<String, String> entries =
+        java.util.Map.of(
+            "META-INF/container.xml",
+            "<container><rootfiles><rootfile full-path='book.opf'/></rootfiles></container>",
+            "book.opf",
+            "<package><metadata><title>合成图片与文字章节</title></metadata><manifest><item id='a'"
+                + " href='a.xhtml' media-type='application/xhtml+xml'/><item id='b' href='b.xhtml'"
+                + " media-type='application/xhtml+xml'/><item id='c' href='c.xhtml'"
+                + " media-type='application/xhtml+xml'/></manifest><spine><itemref"
+                + " idref='a'/><itemref idref='b'/><itemref idref='c'/></spine></package>",
+            "a.xhtml",
+            "<html><body><h1>图片章节</h1><img src='page.jpg' alt='扫描页'/></body></html>",
+            "b.xhtml",
+            "<html><body><h1>图文混排</h1><img src='page.jpg'/><p>这是可以阅读的合成正文。</p></body></html>",
+            "c.xhtml",
+            "<html><body><h1>正文</h1><p>不含图片的合成正文。</p></body></html>");
+    try (java.util.zip.ZipOutputStream zip =
+        new java.util.zip.ZipOutputStream(new FileOutputStream(file))) {
+      for (java.util.Map.Entry<String, String> entry : entries.entrySet()) {
+        zip.putNextEntry(new java.util.zip.ZipEntry(entry.getKey()));
+        zip.write(entry.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        zip.closeEntry();
+      }
+    }
+    library.books.add(book);
+    library.save();
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      View decor = activity.getWindow().getDecorView();
+      findText(decor, "我的书库").performClick();
+      decor.findViewWithTag("book-" + book.id).performClick();
+      choose("离线打开");
+      java.util.concurrent.ExecutorService io = ReflectionHelpers.getField(activity, "io");
+      for (int i = 0; i < 4; i++) {
+        io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        ShadowLooper.idleMainLooper();
+      }
+      render(decor, "reader-image-limitation.png");
+      assertNotNull(findText(decor, "本节含图片，暂不支持显示 · 图片章节"));
+      io.github.spudhero.shufangtv.reader.PagedTextView page =
+          find(decor, io.github.spudhero.shufangtv.reader.PagedTextView.class);
+      assertEquals("［图片：扫描页］", page.content().trim());
+      assertEquals(0, page.offset());
+      findText(decor, "下一页 〉").performClick();
+      for (int i = 0; i < 4; i++) {
+        io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        ShadowLooper.idleMainLooper();
+      }
+      render(decor, "reader-mixed-image-limitation.png");
+      assertNotNull(findText(decor, "本节含图片，暂不支持显示 · 图文混排"));
+      assertTrue(page.content().contains("这是可以阅读的合成正文。"));
+      findText(decor, "下一页 〉").performClick();
+      for (int i = 0; i < 4; i++) {
+        io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        ShadowLooper.idleMainLooper();
+      }
+      render(decor, "reader-after-image-limitation.png");
+      assertNull(findText(decor, "本节含图片，暂不支持显示 · 图文混排"));
+      assertNotNull(findText(decor, "正文"));
+      assertTrue(page.content().contains("不含图片的合成正文。"));
+      assertTrue(page.hasFocus());
+    }
+  }
+
+  @Test
+  public void longReaderTitleFitsOneLineAndLeavesTheReadingModeVisible() throws Exception {
+    android.content.Context context = RuntimeEnvironment.getApplication();
+    LibraryStore library = new LibraryStore(context);
+    BookRecord book = new BookRecord();
+    book.title = "测试合集（全本全注全译）及多位作者的详细介绍与出版说明".repeat(8);
+    book.format = "txt";
+    File file = library.file(book);
+    book.offlineFile = file.getName();
+    java.nio.file.Files.write(
+        file.toPath(),
+        "第一段正文。\n第二段正文。\n".repeat(50).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    library.books.add(book);
+    library.save();
+    try (ActivityController<MainActivity> controller =
+        Robolectric.buildActivity(MainActivity.class).setup()) {
+      MainActivity activity = controller.get();
+      View decor = activity.getWindow().getDecorView();
+      findText(decor, "我的书库").performClick();
+      decor.findViewWithTag("book-" + book.id).performClick();
+      choose("离线打开");
+      java.util.concurrent.ExecutorService io = ReflectionHelpers.getField(activity, "io");
+      for (int i = 0; i < 4; i++) {
+        io.submit(() -> {}).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        ShadowLooper.idleMainLooper();
+      }
+      render(decor, "reader-long-title.png");
+      TextView title = findText(decor, book.title);
+      TextView mode = findText(decor, "离线阅读");
+      assertEquals(1, title.getLayout().getLineCount());
+      assertTrue(title.getLayout().getEllipsisCount(0) > 0);
+      assertTrue(title.getLayout().getHeight() <= title.getHeight());
+      int[] titleAt = new int[2], modeAt = new int[2];
+      title.getLocationOnScreen(titleAt);
+      mode.getLocationOnScreen(modeAt);
+      assertTrue(titleAt[0] + title.getWidth() <= modeAt[0]);
+      assertEquals(book.title, title.getContentDescription());
+    }
+  }
+
+  @Test
   public void readingPanelsKeepTextAndDismissToReader() throws Exception {
     try (ActivityController<MainActivity> controller =
         Robolectric.buildActivity(MainActivity.class).setup()) {

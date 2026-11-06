@@ -23,10 +23,16 @@ public final class BookDocument {
   public static final class Chapter {
     public final String title;
     public final String text;
+    public final boolean hasImages;
 
     public Chapter(String title, String text) {
+      this(title, text, false);
+    }
+
+    public Chapter(String title, String text, boolean hasImages) {
       this.title = Objects.requireNonNull(title, "title");
       this.text = Objects.requireNonNull(text, "text");
+      this.hasImages = hasImages;
     }
   }
 }

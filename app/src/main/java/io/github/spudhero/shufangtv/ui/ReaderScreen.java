@@ -89,6 +89,9 @@ public final class ReaderScreen extends LinearLayout {
     setPadding(dp(activity, 48), dp(activity, 28), dp(activity, 48), dp(activity, 22));
     LinearLayout header = horizontal(activity);
     bookTitle = heading(activity, book.title, 18);
+    bookTitle.setSingleLine(true);
+    bookTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    bookTitle.setContentDescription(book.title);
     add(header, bookTitle, 0, 28);
     ((LayoutParams) header.getChildAt(0).getLayoutParams()).weight = 1;
     modeLabel = text(activity, session.online ? "在线阅读" : "离线阅读", 12, ACCENT);
@@ -96,6 +99,8 @@ public final class ReaderScreen extends LinearLayout {
     add(this, header, -1, 34);
     line(this);
     chapter = text(activity, "", 14, MUTED);
+    chapter.setSingleLine(true);
+    chapter.setEllipsize(android.text.TextUtils.TruncateAt.END);
     gap(this, 16);
     add(this, chapter, -1, 24);
     body = new FrameLayout(activity);
@@ -262,7 +267,7 @@ public final class ReaderScreen extends LinearLayout {
                 : session.chapter(book.chapter, book.txtByte),
         c -> {
           clearSearch(false);
-          chapter.setText(c.title);
+          chapter.setText(c.hasImages ? "本节含图片，暂不支持显示 · " + c.title : c.title);
           if (session.segment != null) book.txtByte = session.segment.start;
           textReady = true;
           page.setContent(c.text, end ? Math.max(0, c.text.length() - 1) : savedOffset);
