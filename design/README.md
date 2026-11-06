@@ -17,3 +17,9 @@
 ## 独立中文朗读
 
 入口 [speech-offline.html](speech-offline.html)，规范 [SPEECH-OFFLINE.md](SPEECH-OFFLINE.md)。由 OpenDesign Cloud 生成，Local Codex 根据 Sony 实测校正模型与容量。默认离线、网络主动选用、浏览和选中分离、主操作固定在底部；网页只模拟状态，不下载、不发声、不保存密钥。[原生落地与实测](../docs/SPEECH-INTEGRATION.md)另行记录。
+
+## 显示与 4K
+
+入口 [display-4k.html](display-4k.html)，原始规格 [DISPLAY-4K.md](DISPLAY-4K.md)。OpenDesign Cloud / Local Codex 生成自动 / 兼容模式、真实效果摘要、折叠设备详情与固定返回操作；包含 4K / 1080p / 720p 设计预览。设备与 PDF 均为合成模拟，浏览器中的尺寸不能证明电视输出。
+
+原生产品依据 Sony 合成器实测使用“4K 内容绘制”文案；设备限制、原生截图和落地映射见 [4K 验证](../docs/DISPLAY-4K-2026-11-06.md)与 [原生采用说明](NATIVE-ADOPTION.md)。原始设计稿保留。

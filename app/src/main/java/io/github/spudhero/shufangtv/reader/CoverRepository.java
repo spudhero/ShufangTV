@@ -20,6 +20,7 @@ import java.util.concurrent.*;
 /** Activity-scoped thumbnails, with I/O isolated from the UI and reader queues. */
 public final class CoverRepository implements AutoCloseable {
   static final int WIDTH = 384, HEIGHT = 576;
+  private final int width, height;
   private static final long RETRY_MS = 30_000, MAX_DISK_BYTES = 64L * 1024 * 1024;
   private final File directory;
   private final LibraryStore library;
@@ -46,13 +47,24 @@ public final class CoverRepository implements AutoCloseable {
     this(
         context.getCacheDir(),
         library,
-        book -> extract(context.getApplicationContext(), library, sources, book));
+        book -> extract(context.getApplicationContext(), library, sources, book),
+        coverWidth(context));
   }
 
   CoverRepository(File cache, LibraryStore library, Extractor extractor) {
+    this(cache, library, extractor, WIDTH);
+  }
+
+  private CoverRepository(File cache, LibraryStore library, Extractor extractor, int width) {
+    this.width = width;
+    this.height = width * 3 / 2;
     this.directory = new File(cache, "covers-v1");
     this.library = library;
     this.extractor = extractor;
+  }
+
+  private static int coverWidth(Context context) {
+    return context.getResources().getDisplayMetrics().density > 2.5f ? 512 : WIDTH;
   }
 
   public void bind(CoverView view, BookRecord book) {
@@ -133,11 +145,13 @@ public final class CoverRepository implements AutoCloseable {
                   ? new DocumentRemoteFile(context, book.documentUri)
                   : new FileRemoteFile(library.file(book))) {
         byte[] image = KindleCover.read(file);
-        return image == null ? null : IllustrationDecoder.thumbnail(image, WIDTH, HEIGHT);
+        int width = coverWidth(context);
+        return image == null ? null : IllustrationDecoder.thumbnail(image, width, width * 3 / 2);
       }
     }
     try (BookSession session = BookSession.open(context, book, online, library, sources)) {
-      return session.coverThumbnail(WIDTH, HEIGHT);
+      int width = coverWidth(context);
+      return session.coverThumbnail(width, width * 3 / 2);
     }
   }
 
@@ -153,7 +167,7 @@ public final class CoverRepository implements AutoCloseable {
         out.write(buffer, 0, count);
       }
       byte[] bytes = out.toByteArray();
-      Bitmap bitmap = IllustrationDecoder.thumbnail(bytes, WIDTH, HEIGHT);
+      Bitmap bitmap = IllustrationDecoder.thumbnail(bytes, width, height);
       file.setLastModified(System.currentTimeMillis());
       return bitmap;
     } catch (IOException | RuntimeException ignored) {
@@ -209,7 +223,7 @@ public final class CoverRepository implements AutoCloseable {
           MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8));
       StringBuilder out = new StringBuilder();
       for (byte b : digest) out.append(String.format(Locale.ROOT, "%02x", b & 255));
-      return out.toString();
+      return (width > WIDTH ? "4k-" : "") + out;
     } catch (java.security.NoSuchAlgorithmException e) {
       throw new AssertionError(e);
     }

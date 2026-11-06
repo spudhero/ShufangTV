@@ -5,6 +5,9 @@ import static io.github.spudhero.shufangtv.ui.TvStyle.*;
 import android.app.*;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.*;
@@ -32,6 +35,12 @@ public final class ReaderScreen extends LinearLayout {
   private final Runnable exit;
   private final PagedTextView page;
   private final ImageView image;
+  private final ReadingSurface highResolution;
+  private DisplayProfile displayProfile;
+  private int paperColor = 0xff1c201d;
+  private float readingBrightness = 1;
+  private boolean pdfReloadPending;
+  private int illustrationGeneration;
   private final TextView chapter, progress, status, bookTitle, modeLabel;
   private final FrameLayout body;
   private final LinearLayout bottom;
@@ -87,6 +96,7 @@ public final class ReaderScreen extends LinearLayout {
     this.library = library;
     this.prefs = prefs;
     this.session = session;
+    displayProfile = new DisplayProfile(activity);
     book = session.record;
     this.exit = exit;
     setOrientation(VERTICAL);
@@ -110,18 +120,36 @@ public final class ReaderScreen extends LinearLayout {
     body = new FrameLayout(activity);
     addView(body, new LayoutParams(-1, 0, 1));
     page = new PagedTextView(activity);
-    image = new ImageView(activity);
+    image =
+        new ImageView(activity) {
+          @Override
+          protected void onDraw(Canvas canvas) {
+            if (!highResolution.confirmed()) super.onDraw(canvas);
+          }
+        };
     image.setScaleType(ImageView.ScaleType.FIT_CENTER);
     image.setFocusable(true);
     image.setFocusableInTouchMode(true);
+    highResolution = new ReadingSurface(activity);
+    highResolution.renderer = this::drawHighResolution;
+    highResolution.onStateChanged = this::resolutionChanged;
+    body.addView(highResolution, new FrameLayout.LayoutParams(-1, -1));
     body.addView(page, new FrameLayout.LayoutParams(-1, -1));
     body.addView(image, new FrameLayout.LayoutParams(-1, -1));
     status = text(activity, "", 14, MUTED);
     status.setGravity(Gravity.CENTER);
     body.addView(status, new FrameLayout.LayoutParams(-1, -1));
     status.setVisibility(GONE);
-    page.onPageReady = this::updateProgress;
+    page.onPageReady =
+        () -> {
+          updateProgress();
+          highResolution.requestRender();
+        };
     page.onIllustrationNeeded = this::loadIllustration;
+    body.addOnLayoutChangeListener(
+        (v, l, t, r, b, ol, ot, or, ob) -> {
+          if (active && r > l && b > t) refreshResolution();
+        });
     searchNavigation = horizontal(activity);
     searchNavigation.setVisibility(GONE);
     mountControls(searchNavigation);
@@ -140,7 +168,7 @@ public final class ReaderScreen extends LinearLayout {
     add(bottom, previousButton, 100, 44);
     progress = text(activity, "", 12, MUTED);
     progress.setGravity(Gravity.CENTER);
-    bottom.addView(progress, new LayoutParams(0, 44, 1));
+    bottom.addView(progress, new LayoutParams(0, dp(activity, 44), 1));
     add(bottom, button(activity, "阅读菜单", false, this::menu), 115, 44);
     gap(bottom, 12);
     add(bottom, button(activity, "下一页 〉", false, () -> turn(1)), 100, 44);
@@ -165,18 +193,79 @@ public final class ReaderScreen extends LinearLayout {
   private void applyAppearance() {
     ReadingStyle style = ReadingStyle.effective(book, prefs);
     int theme = style.paper;
-    setBackgroundColor(theme == 1 ? 0xffe2dac4 : theme == 2 ? 0xff0d110f : 0xff1c201d);
+    paperColor = theme == 1 ? 0xffe2dac4 : theme == 2 ? 0xff0d110f : 0xff1c201d;
+    setBackgroundColor(paperColor);
     page.setAppearance(
         style.font, style.line, style.serif, theme == 1 ? 0xff33382f : 0xffe9e7dc, style.width);
     page.setImageFit(book.imageFit);
-    float brightness = prefs.getInt("brightness", 100) / 100f;
-    page.setAlpha(brightness);
-    image.setAlpha(brightness);
+    readingBrightness = Math.max(.1f, Math.min(1, prefs.getInt("brightness", 100) / 100f));
+    applyContentAlpha();
+    highResolution.requestRender();
     chapter.setTextColor(theme == 1 ? 0xff50594c : MUTED);
     progress.setTextColor(theme == 1 ? 0xff50594c : MUTED);
     bookTitle.setTextColor(theme == 1 ? 0xff33382f : TEXT);
     modeLabel.setTextColor(theme == 1 ? 0xff50594c : ACCENT);
     status.setTextColor(theme == 1 ? 0xff50594c : MUTED);
+  }
+
+  public void refreshResolution() {
+    displayProfile = new DisplayProfile(activity);
+    highResolution.configure(
+        displayProfile.reading(
+            body.getWidth(), body.getHeight(), DisplaySettings.automatic(prefs)));
+    highResolution.requestRender();
+  }
+
+  public void applyResolutionSetting() {
+    highResolution.retry();
+    refreshResolution();
+    if (page.showingImage()) page.retryIllustration();
+  }
+
+  private void applyContentAlpha() {
+    page.setExternalRendering(highResolution.confirmed());
+    page.setAlpha(readingBrightness);
+    image.setAlpha(readingBrightness);
+    image.invalidate();
+  }
+
+  private void resolutionChanged() {
+    if (!active) return;
+    applyContentAlpha();
+    if (foreground && book.format.equals("pdf") && body.getWidth() > 0) loadPdf();
+  }
+
+  private void drawHighResolution(Canvas canvas, int width, int height) {
+    canvas.drawColor(paperColor);
+    if (book.format.equals("pdf")) {
+      if (bitmap != null && !bitmap.isRecycled())
+        canvas.drawBitmap(
+            bitmap, null, new RectF(0, 0, width, height), new Paint(Paint.FILTER_BITMAP_FLAG));
+    } else if (page.getWidth() > 0 && page.getHeight() > 0) {
+      canvas.save();
+      canvas.scale((float) width / page.getWidth(), (float) height / page.getHeight());
+      page.renderContent(canvas);
+      canvas.restore();
+    }
+    // Equivalent to the normal View alpha over the same reading-paper background.
+    int shade = Math.round((1 - readingBrightness) * 255);
+    if (shade > 0) canvas.drawColor((shade << 24) | (paperColor & 0xffffff));
+  }
+
+  public String resolutionStatus() {
+    if (highResolution.failed()) return "系统清晰度 · 已回退";
+    if (highResolution.confirmed())
+      return displayProfile.panelWidth >= 3840 && displayProfile.panelHeight >= 2160
+          ? "4K 内容绘制"
+          : "高清内容绘制";
+    if (displayProfile.uiWidth >= 3840 && displayProfile.uiHeight >= 2160) return "系统原生 4K";
+    return "系统清晰度";
+  }
+
+  public String readingCanvasSize() {
+    return (highResolution.confirmed() ? highResolution.pixelWidth() : body.getWidth())
+        + " × "
+        + (highResolution.confirmed() ? highResolution.pixelHeight() : body.getHeight());
   }
 
   private void mountControls(LinearLayout controls) {
@@ -304,12 +393,32 @@ public final class ReaderScreen extends LinearLayout {
 
   private void loadPdf() {
     if (!active) return;
-    int width =
+    if (busy) {
+      pdfReloadPending = true;
+      return;
+    }
+    pdfReloadPending = false;
+    int uiWidth =
         body.getWidth() > 0 ? body.getWidth() : getResources().getDisplayMetrics().widthPixels;
-    int height =
+    int uiHeight =
         body.getHeight() > 0 ? body.getHeight() : getResources().getDisplayMetrics().heightPixels;
+    int width = highResolution.confirmed() ? highResolution.pixelWidth() : uiWidth;
+    int height = highResolution.confirmed() ? highResolution.pixelHeight() : uiHeight;
+    int pdfPage = book.pdfPage;
+    float zoom = book.pdfZoom, x = book.pdfX, y = book.pdfY;
     task(
-        () -> session.renderPdf(book.pdfPage, width, height, book.pdfZoom, book.pdfX, book.pdfY),
+        () -> {
+          try {
+            return session.renderPdf(pdfPage, width, height, zoom, x, y);
+          } catch (OutOfMemoryError error) {
+            if (width <= uiWidth && height <= uiHeight) throw new IOException("内存不足，请稍后重试", error);
+            try {
+              return session.renderPdf(pdfPage, uiWidth, uiHeight, zoom, x, y);
+            } catch (OutOfMemoryError lowMemory) {
+              throw new IOException("内存不足，请稍后重试", lowMemory);
+            }
+          }
+        },
         frame -> {
           Bitmap old = bitmap;
           bitmap = frame.bitmap;
@@ -318,32 +427,56 @@ public final class ReaderScreen extends LinearLayout {
           book.pdfY = pdfViewport.y();
           image.setImageBitmap(bitmap);
           if (old != null && old != bitmap) old.recycle();
+          highResolution.requestRender();
+          if (frame.bitmap.getWidth() != width || frame.bitmap.getHeight() != height)
+            highResolution.fallback();
           chapter.setText("PDF · 第 " + (book.pdfPage + 1) + " 页");
           updateProgress();
           surface().requestFocus();
           save();
+          if (pdfReloadPending) image.post(this::loadPdf);
         },
         this::loadPdf);
   }
 
   private void loadIllustration(BookDocument.Illustration ref) {
+    int request = ++illustrationGeneration;
+    int width =
+        displayProfile.reading(
+                Math.max(1, body.getWidth()),
+                Math.max(1, body.getHeight()),
+                DisplaySettings.automatic(prefs) && !highResolution.failed())
+            .width;
+    int decodeWidth = Math.max(1920, width);
+    int decodeHeight = Math.max(2160, Math.min(8192, decodeWidth * 2));
     io.submit(
         () -> {
           Bitmap value = null;
           String error = null;
+          boolean memoryFallback = false;
           try {
-            value = session.illustration(ref);
+            try {
+              value = session.illustration(ref, decodeWidth, decodeHeight);
+            } catch (OutOfMemoryError tooLarge) {
+              if (decodeWidth <= 1920) throw tooLarge;
+              memoryFallback = true;
+              value = session.illustration(ref, 1920, 2160);
+            }
           } catch (Exception e) {
             error = safeError(e);
+          } catch (OutOfMemoryError e) {
+            error = "图片内存不足，请稍后重试";
           }
           final Bitmap result = value;
           final String failure = error;
+          final boolean fellBack = memoryFallback;
           activity.runOnUiThread(
               () -> {
-                if (!active) {
+                if (!active || request != illustrationGeneration) {
                   if (result != null) result.recycle();
                   return;
                 }
+                if (fellBack) highResolution.fallback();
                 page.illustrationReady(ref, result, failure);
               });
         });
@@ -626,6 +759,21 @@ public final class ReaderScreen extends LinearLayout {
       ReadingPanel.row(content, bookmark, tool(dialog, "收藏正文段落", "摘录与自己的想法", this::startSelection));
     else ReadingPanel.row(content, bookmark);
     ReadingPanel.section(content, "显示");
+    ReadingPanel.row(
+        content,
+        tool(
+            dialog,
+            "显示与清晰度",
+            resolutionStatus(),
+            () ->
+                DisplayPanel.show(
+                    activity,
+                    prefs,
+                    new ReaderDialog(activity),
+                    this::resolutionStatus,
+                    this::readingCanvasSize,
+                    this::applyResolutionSetting,
+                    null)));
     ReadingStyle style = ReadingStyle.effective(book, prefs);
     View paper =
         tool(
@@ -1287,6 +1435,7 @@ public final class ReaderScreen extends LinearLayout {
 
   public void foreground(boolean value) {
     foreground = value;
+    if (value) highResolution.requestRender();
     if (value && speechDeadline > 0) {
       main.removeCallbacks(sleepStop);
       long remaining = speechDeadline - android.os.SystemClock.elapsedRealtime();
@@ -1608,6 +1757,9 @@ public final class ReaderScreen extends LinearLayout {
     if (!active) return;
     save();
     active = false;
+    highResolution.onStateChanged = null;
+    highResolution.renderer = null;
+    highResolution.setVisibility(GONE);
     stopAuto();
     stopSpeech();
     main.removeCallbacksAndMessages(null);

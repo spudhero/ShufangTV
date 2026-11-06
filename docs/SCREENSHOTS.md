@@ -1,5 +1,11 @@
 # 原生界面与 Sony 实机图
 
+## 4K 展示 · 0.5.0-alpha.2
+
+[4K 阅读页](screenshots/display-4k-2026-11-06/reader-native-4k.png)、[4K 首页](screenshots/display-4k-2026-11-06/covers-home-4k.png)、[4K 书库](screenshots/display-4k-2026-11-06/covers-shelf-4k.png)，以及 [4K](screenshots/display-4k-2026-11-06/display-4k.png) / [1080p](screenshots/display-4k-2026-11-06/display-1080p.png) / [720p](screenshots/display-4k-2026-11-06/display-720p.png) 显示面板。以上均为 Robolectric 原生 View 渲染的合成内容，4K 阅读页实际尺寸 3840×2160；不是 Sony 原生 4K 界面的证明。
+
+Sony 独立源的 [3840×2160 PixelCopy 测试图](screenshots/display-4k-2026-11-06/pixelcopy-4k.png)保留逐像素黑白细节；该固件最终仍按 1080p 合成，完整边界见 [4K 验证](DISPLAY-4K-2026-11-06.md)。
+
 ## 独立离线中文 · 0.5.0-alpha.1
 
 [语音接入验收](SPEECH-INTEGRATION.md)包含实际 Sony 的合成音频与指标。以下为 Robolectric 原生 View 渲染，背景与书籍均为合成内容：
@@ -118,3 +124,5 @@ BRAVIA 4K UR2，Android 10 / 1920×1080 / 320dpi；通过 ADB 捕获物理电视
 ## 阅读指南
 
 ![阅读指南](screenshots/reader.png)
+
+Sony 本次实机：[显示设置](screenshots/display-4k-2026-11-06/sony-display-panel.png)、[遥控器滚动后的设备详情](screenshots/display-4k-2026-11-06/sony-display-details.png)、[原创指南正文](screenshots/display-4k-2026-11-06/sony-guide-reading.png)。系统截图仍为 1080p；对话框按实际边界裁切，不能用来证明最终原生 4K 输出。

@@ -256,7 +256,7 @@ public final class MainActivity extends Activity {
     gap(body, 16);
     LinearLayout title = horizontal(this);
     TextView recentTitle = text(this, "最近阅读", 17, TEXT);
-    title.addView(recentTitle, new LinearLayout.LayoutParams(0, 34, 1));
+    title.addView(recentTitle, new LinearLayout.LayoutParams(0, dp(this, 34), 1));
     action(title, "查看书库", false, this::showLibrary);
     add(body, title, -1, 42);
     gap(body, 10);
@@ -1902,8 +1902,34 @@ public final class MainActivity extends Activity {
   private void showSettings() {
     View previous = route.equals("settings") && root != null ? root.findFocus() : null;
     String anchor =
-        previous == null ? "settings-speech-settings" : String.valueOf(previous.getTag());
+        previous == null ? "settings-display-settings" : String.valueOf(previous.getTag());
     shell("settings", "设置", "全局阅读默认值 · 本书独立排版不受影响");
+    ReadingPanel.section(body, "显示与清晰度");
+    add(
+        body,
+        text(
+            this,
+            DisplaySettings.automatic(preferences) ? "自动 · 打开书籍后确认阅读画布" : "兼容模式 · 使用系统画布",
+            14,
+            TEXT),
+        -1,
+        -2);
+    gap(body, 8);
+    ReadingPanel.row(
+        body,
+        globalSetting(
+            "管理显示",
+            "display-settings",
+            false,
+            () ->
+                DisplayPanel.show(
+                    this,
+                    preferences,
+                    new AlertDialog.Builder(this),
+                    null,
+                    null,
+                    null,
+                    this::showSettings)));
     settingsHasSpeechEngine = SpeechSetup.hasEngine(this);
     ReadingPanel.section(body, "朗读与语音");
     add(body, text(this, SpeechSettings.status(this), 14, TEXT), -1, -2);
@@ -2133,7 +2159,9 @@ public final class MainActivity extends Activity {
                + "开源与边界\n\n"
                + "所有应用源码在 github.com/spudhero/ShufangTV。支持纯图片 EPUB、图文混排及无 DRM 的 AZW3/MOBI；PDF"
                + " 默认全屏撑满屏宽，上下滚动；确定打开菜单可缩放并恢复 100%，放大后左右平移。带 DRM"
-               + " 的书籍无法读取。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n";
+               + " 的书籍无法读取。网盘直接连接，登录失效时请重新扫码；在线与离线阅读分开。\n"
+               + "设置或阅读菜单里的“显示与清晰度”可选择自动高清绘制或兼容模式。提高绘制精度时字号和阅读位置不变；设备详情分别显示面板、系统界面与实际阅读画布。部分电视系统仍会再次缩放，4K"
+               + " 绘制不代表最终输出已是原生 4K。\n";
   }
 
   private <T> void job(String title, Callable<T> work, Consumer<T> done) {

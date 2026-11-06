@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="书房 TV 显示与清晰度交互设计：自动、兼容与实际阅读画布确认。全部为合成内容及模拟状态。">
+  <title>书房 TV · 显示与清晰度</title>
+  <link rel="icon" type="image/svg+xml" href="assets/ui-refinements/book-original.svg">
+  <style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+  .od-stack { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill { flex: 1 1 0; min-width: 0; }
+  .od-fixed { flex: none; }
+  .od-grid { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+  .od-stat,.od-field,.od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2,.od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap { white-space: nowrap; }
+  .od-keep { word-break: keep-all; overflow-wrap: anywhere; }
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+  </style>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="assets/display-4k/display-4k.css">
+  <script src="assets/display-4k/display-state.js" defer></script>
+  <script src="assets/display-4k/display-4k.js" defer></script>
+</head>
+<body>
+  <header class="audit-bar" aria-label="独立设计审核工具，不属于原生产品界面">
+    <div class="audit-brand"><strong>书房 TV · 显示</strong><small>设计审核 / 合成内容 / 状态模拟</small></div>
+    <nav class="audit-nav" aria-label="预览场景">
+      <button type="button" data-scene="settings" aria-pressed="false">设置概要</button>
+      <button type="button" data-scene="display" aria-pressed="true">显示面板</button>
+      <button type="button" data-scene="reader" aria-pressed="false">阅读菜单</button>
+    </nav>
+    <label>目标画布<select id="canvas-profile"><option value="1080">1920×1080 @2 · 960×540dp</option><option value="4k">3840×2160 @4 · 960×540dp</option><option value="720">1280×720 @2 · 640×360dp</option></select></label>
+    <label>状态样例<select id="fixture">
+      <option value="">当前交互</option>
+      <option value="idle" selected>Sony · 未进入阅读</option>
+      <option value="waiting">Sony · 正在确认（固定样例）</option>
+      <option value="hd">Sony · 独立高清已确认</option>
+      <option value="compat">Sony · 兼容模式已确认</option>
+      <option value="fallback">Sony · 高清失败已回退</option>
+      <option value="native">原生 4K 系统 · 系统阅读已确认</option>
+      <option value="fullhd">1080p 面板 · 系统阅读已确认</option>
+      <option value="unknown">面板信息未确认 · 系统阅读</option>
+      <option value="unavailable">回退画面暂未恢复</option>
+    </select></label>
+    <label>后续确认结果<select id="result-mode"><option value="success">成功</option><option value="fallback">失败后回退</option><option value="timeout">超时后回退</option></select></label>
+    <label>阅读示例<select id="reading-format"><option value="TXT">TXT 合成正文</option><option value="PDF">PDF 合成页面</option></select></label>
+    <button type="button" id="rebuild">模拟画布重建</button>
+  </header>
+  <div class="audit-note"><strong>仅模拟设计状态，不读取电视数据，不是设备认证。</strong> 方向键移动，Enter 确定，Escape 返回；画布按浏览器可用宽度缩放。<span id="current-audit" role="status"></span></div>
+  <div class="display-frame" id="display-frame" data-profile="1080">
+    <main class="display-stage" id="display-app" tabindex="-1" aria-label="书房 TV 显示与清晰度交互原型"><noscript><div style="padding:48px"><h1>显示与清晰度</h1><p>请启用 JavaScript 使用交互原型。</p></div></noscript></main>
+  </div>
+  <details class="audit-note audit-report"><summary>尺寸换算与当前预览测量</summary><output id="size-metrics" aria-live="off"></output></details>
+  <footer class="audit-footer"><span>合成书名与正文。已有书库和语音稿通过新窗口打开，保留本页阅读位置。</span><a href="DISPLAY-4K.md">查看中文 dp/sp 落地规格</a></footer>
+</body>
+</html>

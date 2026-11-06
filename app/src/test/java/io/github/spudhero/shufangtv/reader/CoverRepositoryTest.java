@@ -32,6 +32,12 @@ import org.robolectric.util.ReflectionHelpers;
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class CoverRepositoryTest {
   @Test
+  @Config(qualifiers = "w960dp-h540dp-land-television-xxxhdpi")
+  public void native4kHomeAndShelfUseLargerCoverPixels() throws Exception {
+    assertProductionBinding("4k");
+  }
+
+  @Test
   public void actualEpubCoverAppearsOnHomeAndShelfAt1080p() throws Exception {
     assertProductionBinding("1080p");
   }
@@ -50,8 +56,9 @@ public class CoverRepositoryTest {
     book.author = "书房测试样书";
     book.lastRead = 1;
     book.offlineFile = book.id + ".epub";
-    Bitmap cover = Bitmap.createBitmap(400, 600, Bitmap.Config.ARGB_8888);
+    Bitmap cover = Bitmap.createBitmap(800, 1200, Bitmap.Config.ARGB_8888);
     Canvas canvas = new Canvas(cover);
+    canvas.scale(2, 2);
     Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     canvas.drawColor(0xff314d4b);
     paint.setColor(0xffd8b377);
@@ -94,6 +101,8 @@ public class CoverRepositoryTest {
       CoverRepository repository = ReflectionHelpers.getField(activity, "covers");
       ReadingUiTest.render(decor, "covers-home-" + size + ".png");
       settle(repository, decor);
+      TextView recent = text(decor, "最近阅读");
+      assertTrue(recent.getHeight() >= recent.getPaint().getFontSpacing());
       // At 720p the recent card starts below the viewport and should remain lazy.
       assertEquals(size.equals("720p") ? 1 : 2, assertImages(decor));
       assertTrue(text(decor, "继续阅读").hasFocus());
@@ -113,7 +122,9 @@ public class CoverRepositoryTest {
       if (!view.getGlobalVisibleRect(new Rect())) return 0;
       Bitmap bitmap = ReflectionHelpers.getField(view, "image");
       assertNotNull(bitmap);
-      assertTrue(bitmap.getWidth() <= 384 && bitmap.getHeight() <= 576);
+      int width = view.getResources().getDisplayMetrics().density > 2.5f ? 512 : 384;
+      assertEquals(width, bitmap.getWidth());
+      assertEquals(width * 3 / 2, bitmap.getHeight());
       assertEquals(0xff314d4b, bitmap.getPixel(20, 20));
       count++;
     }
@@ -322,8 +333,8 @@ public class CoverRepositoryTest {
     byte[] bytes = out.toByteArray();
     byte[] page =
         ("<html><body><svg xmlns='http://www.w3.org/2000/svg'"
-             + " xmlns:xlink='http://www.w3.org/1999/xlink' viewBox='0 0 1200 1800'><image"
-             + " width='1200' height='1800' xlink:href='../Images/封面.png'/></svg></body></html>")
+                + " xmlns:xlink='http://www.w3.org/1999/xlink' viewBox='0 0 1200 1800'><image"
+                + " width='1200' height='1800' xlink:href='../Images/封面.png'/></svg></body></html>")
             .getBytes(StandardCharsets.UTF_8);
     try (BookArchive archive =
         new BookArchive() {

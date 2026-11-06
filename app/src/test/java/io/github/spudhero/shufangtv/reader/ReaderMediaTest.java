@@ -18,6 +18,53 @@ import org.robolectric.annotation.*;
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ReaderMediaTest {
   @Test
+  public void vectorIllustrationsRenderAt4kAndTextKeepsItsInputView() throws Exception {
+    String svg =
+        "<svg xmlns='http://www.w3.org/2000/svg' width='960' height='540' viewBox='0 0 960 540'>"
+            + "<rect width='960' height='540' fill='#ffffff'/>"
+            + "<rect x='0' width='480' height='540' fill='#ff0000'/></svg>";
+    Bitmap vector =
+        IllustrationDecoder.read(
+            null, new BookDocument.Illustration(0, 1, "test.svg", "合成插图", svg), 3840, 2160);
+    assertEquals(3840, vector.getWidth());
+    assertEquals(2160, vector.getHeight());
+    assertEquals(Color.RED, vector.getPixel(1000, 1000));
+    assertEquals(Color.WHITE, vector.getPixel(3000, 1000));
+    vector.recycle();
+
+    PagedTextView page = new PagedTextView(RuntimeEnvironment.getApplication());
+    page.layout(0, 0, 800, 400);
+    page.setContent("高清正文与朗读使用同一段落位置。\n下一段依旧可以正常阅读。", 0);
+    int offset = page.offset(), next = page.nextOffset();
+    page.setExternalRendering(true);
+    assertEquals(1, page.getAlpha(), 0);
+    assertTrue(page.isFocusable());
+    assertTrue(page.getContentDescription().toString().contains("左右翻页"));
+    Bitmap ui = Bitmap.createBitmap(800, 400, Bitmap.Config.ARGB_8888);
+    page.draw(new Canvas(ui));
+    assertEquals(0, inkPixels(ui));
+    Bitmap high = Bitmap.createBitmap(1600, 800, Bitmap.Config.ARGB_8888);
+    Canvas canvas = new Canvas(high);
+    canvas.scale(2, 2);
+    page.renderContent(canvas);
+    assertTrue(inkPixels(high) > 500);
+    assertEquals(offset, page.offset());
+    assertEquals(next, page.nextOffset());
+    page.setExternalRendering(false);
+    page.draw(new Canvas(ui));
+    assertTrue(inkPixels(ui) > 100);
+    ui.recycle();
+    high.recycle();
+  }
+
+  private static int inkPixels(Bitmap bitmap) {
+    int count = 0;
+    for (int y = 0; y < bitmap.getHeight(); y++)
+      for (int x = 0; x < bitmap.getWidth(); x++) if ((bitmap.getPixel(x, y) >>> 24) > 0) count++;
+    return count;
+  }
+
+  @Test
   public void mixedPagesRenderRealPixelsScrollAndRejectStaleImages() {
     PagedTextView page = new PagedTextView(RuntimeEnvironment.getApplication());
     page.layout(0, 0, 800, 400);

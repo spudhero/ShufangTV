@@ -199,6 +199,11 @@ public final class BookSession implements AutoCloseable {
     return IllustrationDecoder.read(archive, ref);
   }
 
+  public Bitmap illustration(BookDocument.Illustration ref, int width, int height)
+      throws IOException {
+    return IllustrationDecoder.read(archive, ref, width, height);
+  }
+
   /** Full first-page thumbnail; independent of the reader's current page, scroll and zoom. */
   public Bitmap coverThumbnail(int width, int height) throws IOException {
     if (epub != null) {

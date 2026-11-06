@@ -34,6 +34,12 @@ public final class PagedTextView extends View {
   private boolean imageRequested;
   private float imageY;
   private int imageFit;
+  private boolean externalRendering;
+
+  public void setExternalRendering(boolean external) {
+    externalRendering = external;
+    invalidate();
+  }
 
   public void setImageFit(int mode) {
     if (imageFit == mode) return;
@@ -314,6 +320,11 @@ public final class PagedTextView extends View {
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
+    if (!externalRendering) renderContent(canvas);
+  }
+
+  /** Draw vectors and source illustrations directly into either the UI or a denser surface. */
+  public void renderContent(Canvas canvas) {
     if (currentImage != null) {
       if (illustration != null) {
         DocumentViewport viewport = imageViewport();

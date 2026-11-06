@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 /** Decode on the I/O executor, with a bounded compressed input and sampled raster allocation. */
 public final class IllustrationDecoder {
   private static final int MAX_BYTES = 16 * 1024 * 1024;
-  private static final int MAX_PIXELS = 6 * 1024 * 1024;
+  private static final int MAX_PIXELS = 3840 * 2160;
 
   public static Bitmap read(BookArchive archive, BookDocument.Illustration image)
       throws IOException {
@@ -66,10 +66,8 @@ public final class IllustrationDecoder {
       }
       float scale =
           Math.min(
-              1,
-              Math.min(
-                  Math.min(maxWidth / w, maxHeight / h),
-                  (float) Math.sqrt(MAX_PIXELS / ((double) w * h))));
+              Math.min(maxWidth / w, maxHeight / h),
+              (float) Math.sqrt(MAX_PIXELS / ((double) w * h)));
       int width = Math.max(1, (int) (w * scale)), height = Math.max(1, (int) (h * scale));
       svg.setDocumentWidth(width);
       svg.setDocumentHeight(height);
